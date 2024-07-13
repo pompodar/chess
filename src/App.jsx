@@ -27,6 +27,7 @@ function App() {
   const [notation, setNotation] = useState([]);
   const [moves, setMoves] = useState([]);
   const [move, setMove] = useState(0);
+  const [capturedPieces, setCapturedPieces] = useState([]);
 
   const [game, setGame] = useState(null);
   
@@ -236,7 +237,6 @@ function App() {
   }
 
   function handleClickCell(cell) {
-    console.log(cell);
     if (!selectedPiece) {
       if (!cell.filled || colorToMove !== cell.color) return;
       setSelectedPiece(cell);
@@ -345,7 +345,6 @@ function App() {
     const chess = new Chess();
     chess.loadPgn(pgn);
     const moves = chess.history({ verbose: true });
-    console.log(moves);
     setMoves(moves);
     return moves.map(move => ({
       from: move.from,
@@ -370,14 +369,13 @@ function App() {
               if (piece.position === currentMove.from) {
                 return { ...piece, position: currentMove.to };
               } else if (piece.position === currentMove.to) {
+                setCapturedPieces(prevArray => [...prevArray, piece]);
                 return { ...piece, position: null }; // Captured
               }
               return piece;
             })
           };
         });
-
-        console.log(currentMove.san);
 
         // Handle castling
         if (currentMove.piece === 'k' && currentMove.san === "O-O-O") {
@@ -411,37 +409,52 @@ function App() {
       });
     }
   };
-  
   const prevMove = () => {
     if (move > 0) {
       const prevMove = game[move - 1];
-      console.log(prevMove);
-
+  
       setSides(prevSides => {
         let newSides = prevSides.map(side => {
           return {
             ...side,
-            pieces: side.pieces.map(piece =>
-              piece.position === prevMove.to
-                ? { ...piece, position: prevMove.from }
-                : piece
-            )
+            pieces: side.pieces.map(piece => {
+              if (piece.position === prevMove.to) {
+                return { ...piece, position: prevMove.from };
+              }
+              return piece;
+            })
           };
         });
-
-        // Handle castling move reversal
-        if (prevMove.piece === 'k' && prevMove.san === "O-O-O") {
-          if (prevMove.to === 'c1' || prevMove.to === 'c8') {
-            const rookPosition = prevMove.color === 'white' ? 'd1' : 'd8';
-            const rookOriginalPosition = prevMove.color === 'white' ? 'a1' : 'a8';
-            newSides = updateRookPosition(newSides, rookPosition, rookOriginalPosition);
-          } else if (prevMove.to === 'g1' || prevMove.to === 'g8') {
-            const rookPosition = prevMove.color === 'white' ? 'f1' : 'f8';
-            const rookOriginalPosition = prevMove.color === 'white' ? 'h1' : 'h8';
-            newSides = updateRookPosition(newSides, rookPosition, rookOriginalPosition);
-          }
+  
+        const filteredCapturedPieces = capturedPieces.filter(p => p.position === prevMove.to);
+        const capturedPiece = filteredCapturedPieces.length > 0 ? filteredCapturedPieces[filteredCapturedPieces.length - 1] : null;
+  
+        console.log(capturedPiece);
+  
+        if (capturedPiece) {
+          const opponentColor = prevMove.color === 'white' ? 'black' : 'white';
+          const originalPosition = capturedPiece.position;
+          newSides = newSides.map(side => {
+            if (side.color === opponentColor) {
+              return {
+                ...side,
+                pieces: [...side.pieces, {
+                  ...capturedPiece,
+                  position: originalPosition,
+                }]
+              };
+            }
+            return side;
+          });
+          setCapturedPieces(prev => prev.filter(p => p !== capturedPiece));
         }
-
+  
+        if (prevMove.piece === 'k' && prevMove.san.includes("O-O")) {
+          const rookPosition = prevMove.color === 'white' ? (prevMove.to === 'g1' ? 'f1' : 'd1') : (prevMove.to === 'g8' ? 'f8' : 'd8');
+          const rookOriginalPosition = prevMove.color === 'white' ? (prevMove.to === 'g1' ? 'h1' : 'a1') : (prevMove.to === 'g8' ? 'h8' : 'a8');
+          newSides = updateRookPosition(newSides, rookPosition, rookOriginalPosition);
+        }
+  
         return newSides;
       });
       setColorToMove(colorToMove === 'white' ? 'black' : 'white');
@@ -457,6 +470,8 @@ function App() {
       });
     }
   };
+  
+  
 
   const updateRookPosition = (sides, rookPosition, rookNewPosition) => {
     return sides.map((side) => {
