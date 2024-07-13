@@ -286,7 +286,6 @@ function App() {
     setSides(prevSides => prevSides.map(side => ({
         ...side,
         pieces: side.pieces.map(p => {
-            console.log('Checking piece at position:', p.position);
             return p.position === pieceToPromote.position.replace("2", "1").replace("7", "8")
                 ? {
                     ...p,
@@ -428,9 +427,7 @@ function App() {
   
         const filteredCapturedPieces = capturedPieces.filter(p => p.position === prevMove.to);
         const capturedPiece = filteredCapturedPieces.length > 0 ? filteredCapturedPieces[filteredCapturedPieces.length - 1] : null;
-  
-        console.log(capturedPiece);
-  
+    
         if (capturedPiece) {
           const opponentColor = prevMove.color === 'white' ? 'black' : 'white';
           const originalPosition = capturedPiece.position;
