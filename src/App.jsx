@@ -30,6 +30,9 @@ function App() {
   const [move, setMove] = useState(0);
   const [capturedPieces, setCapturedPieces] = useState([]);
 
+  const [engine, setEngine] = useState(null);
+  const [evaluation, setEvaluation] = useState(null);
+
   const sidebarRef = useRef(null);
 
   useEffect(() => {
@@ -37,6 +40,34 @@ function App() {
       sidebarRef.current.scrollTop = sidebarRef.current.scrollHeight;
     }
   }, [notation]);
+
+  useEffect(() => {
+    const stockfish = new Worker('./stockfish.js');
+    setEngine(stockfish);
+
+    stockfish.onmessage = (event) => {
+      const message = event.data;
+      if (message.includes('score')) {
+        const score = message.match(/score (cp|mate) (-?\d+)/);
+        if (score) {
+          const type = score[1];
+          const value = parseInt(score[2], 10);
+          setEvaluation({ type, value });
+        }
+      }
+    };
+
+    return () => {
+      stockfish.terminate();
+    };
+  }, []);
+
+  const evaluatePosition = (fen) => {
+    if (engine) {
+      engine.postMessage('position fen ' + fen);
+      engine.postMessage('go depth 15'); // You can change the depth for a different evaluation time
+    }
+  };
 
   const [game, setGame] = useState(null);
   
@@ -419,8 +450,11 @@ function App() {
           return [...prevNotation.slice(0, -1), lastMove];
         }
       });
+
+      evaluatePosition(currentMove.after);
     }
   };
+
   const prevMove = () => {
     if (move > 0) {
       const prevMove = game[move - 1];
@@ -527,7 +561,7 @@ function App() {
         </div>
       )}
       <div className="main">
-        <div class="board__wrapper">
+        <div className="board__wrapper">
           {game && (
               <h1>{title}</h1>
           )}
@@ -554,6 +588,11 @@ function App() {
               </li>
             ))}
           </ul>
+          {evaluation && (
+            <div>
+              Evaluation: {evaluation.type === 'cp' ? evaluation.value / 100 : 'Mate in ' + evaluation.value}
+            </div>
+          )}
         </div>
       </div>
     </>
