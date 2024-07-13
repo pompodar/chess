@@ -396,13 +396,16 @@ function App() {
       fenBefore: move.before,
       fenAfter: move.after,
       san: move.san,
-      flags: move.flags
+      flags: move.flags,
+      color: move.turn,
     }));
   };
 
   const nextMove = () => {
     if (game.length > move) {
       const currentMove = moves[move];
+
+      console.log(currentMove, "currentMove");
 
       setSides((prevSides) => {
         let newSides = prevSides.map((side) => {
@@ -421,16 +424,17 @@ function App() {
         });
 
         // Handle castling
-        if (currentMove.piece === 'k' && currentMove.san === "O-O-O") {
+        if (currentMove.piece === 'k' && currentMove.san.includes("O-O")) {
           if (currentMove.to === 'c1' || currentMove.to === 'c8') {
             // Kingside castling
-            const rookPosition = currentMove.color === 'white' ? 'a1' : 'a8';
-            const rookNewPosition = currentMove.color === 'white' ? 'd1' : 'd8';
+            const rookPosition = currentMove.color === 'w' ? 'a1' : 'a8';
+            const rookNewPosition = currentMove.color === 'w' ? 'd1' : 'd8';
+            console.log(currentMove)
             newSides = updateRookPosition(newSides, rookPosition, rookNewPosition);
           } else if (currentMove.to === 'g1' || currentMove.to === 'g8') {
             // Queenside castling
-            const rookPosition = currentMove.color === 'white' ? 'h1' : 'h8';
-            const rookNewPosition = currentMove.color === 'white' ? 'f1' : 'f8';
+            const rookPosition = currentMove.color === 'w' ? 'h1' : 'h8';
+            const rookNewPosition = currentMove.color === 'w' ? 'f1' : 'f8';
             newSides = updateRookPosition(newSides, rookPosition, rookNewPosition);
           }
         }
@@ -440,7 +444,7 @@ function App() {
       setColorToMove(colorToMove === 'white' ? 'black' : 'white');
       setMove(move + 1);
   
-      const newMove = { from: moves[move].from, to: moves[move].to, image: getPieceImage(moves[move].piece) };
+      const newMove = { from: moves[move].from, to: moves[move].to, image: getPieceImage(moves[move].piece), color: moves[move].from.color };
       setNotation((prevNotation) => {
         if (move % 2 === 0) {
           return [...prevNotation, { white: newMove }];
@@ -457,7 +461,9 @@ function App() {
 
   const prevMove = () => {
     if (move > 0) {
-      const prevMove = game[move - 1];
+      const prevMove = moves[move - 1];
+
+      console.log(game, "prevMove")
   
       setSides(prevSides => {
         let newSides = prevSides.map(side => {
@@ -476,7 +482,7 @@ function App() {
         const capturedPiece = filteredCapturedPieces.length > 0 ? filteredCapturedPieces[filteredCapturedPieces.length - 1] : null;
     
         if (capturedPiece) {
-          const opponentColor = prevMove.color === 'white' ? 'black' : 'white';
+          const opponentColor = prevMove.color === 'w' ? 'black' : 'white';
           const originalPosition = capturedPiece.position;
           newSides = newSides.map(side => {
             if (side.color === opponentColor) {
@@ -494,8 +500,8 @@ function App() {
         }
   
         if (prevMove.piece === 'k' && prevMove.san.includes("O-O")) {
-          const rookPosition = prevMove.color === 'white' ? (prevMove.to === 'g1' ? 'f1' : 'd1') : (prevMove.to === 'g8' ? 'f8' : 'd8');
-          const rookOriginalPosition = prevMove.color === 'white' ? (prevMove.to === 'g1' ? 'h1' : 'a1') : (prevMove.to === 'g8' ? 'h8' : 'a8');
+          const rookPosition = prevMove.color === 'w' ? (prevMove.to === 'g1' ? 'f1' : 'd1') : (prevMove.to === 'g8' ? 'f8' : 'd8');
+          const rookOriginalPosition = prevMove.color === 'w' ? (prevMove.to === 'g1' ? 'h1' : 'a1') : (prevMove.to === 'g8' ? 'h8' : 'a8');
           newSides = updateRookPosition(newSides, rookPosition, rookOriginalPosition);
         }
   
@@ -512,6 +518,8 @@ function App() {
           return [...prevNotation.slice(0, -1), lastMove];
         }
       });
+
+      evaluatePosition(prevMove.after);
     }
   };
 
@@ -578,8 +586,8 @@ function App() {
             <input type="file" className="w-full" accept=".pgn" onChange={handleFileUpload} />
           </div>
         </div>    
-        <div className="sidebar" ref={sidebarRef}>
-          <ul>
+        <div className="sidebar">
+          <ul ref={sidebarRef}>
             {notation.map((move, index) => (
               <li key={index}>
                 <span>{index + 1}. </span>

@@ -38,11 +38,14 @@
 .cell.highlight {
   background-color: rgb(159, 159, 148);
 }
-
 .sidebar {
-  max-height: 320px;
-  overflow: auto;
   margin-top: 68px;
+  width: 260px;
+}
+
+.sidebar ul {
+  height: 288px;
+  overflow: auto;
 }
 
 li {
