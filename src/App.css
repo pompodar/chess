@@ -5,6 +5,11 @@
   text-align: center;
 }
 
+.main {
+  display: flex;
+  gap: 8pc;
+}
+
 .board {
   display: flex;
 }
@@ -21,4 +26,13 @@
 
 .cell.highlight {
   background-color: rgb(159, 159, 148);
+}
+
+.sidebar {
+  max-height: 328px;
+  overflow: auto;
+}
+
+li {
+  list-style-type: none;
 }

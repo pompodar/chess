@@ -1,7 +1,6 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import './App.css';
 import { Piece } from "@chessire/pieces";
-import { Chess } from 'chess.js';
 
 export const BlackPawn = () => <Piece color="black" piece="P" width={32} />;
 export const BlackRook = () => <Piece color="black" piece="R" width={32} />;
@@ -23,12 +22,6 @@ function App() {
   const [highlightedCells, setHighlightedCells] = useState([]);
   const [promoteTo, setPromoteTo] = useState(null);
   const [pieceToPromote, setPieceToPromote] = useState(null);
-
-  const [notation, setNotation] = useState([]);
-  const [moves, setMoves] = useState([]);
-  const [move, setMove] = useState(0);
-
-  const [game, setGame] = useState(null);
   
   const [sides, setSides] = useState([
     {
@@ -326,201 +319,20 @@ function App() {
     </div>
   );
 
-  const handleFileUpload = (event) => {
-    const file = event.target.files[0];
-    if (file) {
-      const reader = new FileReader();
-      reader.onload = (e) => {
-        const pgnText = e.target.result;
-        const gameConverted = convertPgnToGame(pgnText);
-        setGame(gameConverted);
-        setNotation([]);
-        setMove(0);
-      };
-      reader.readAsText(file);
-    }
-  };
-
-  const convertPgnToGame = (pgn) => {
-    const chess = new Chess();
-    chess.loadPgn(pgn);
-    const moves = chess.history({ verbose: true });
-    console.log(moves);
-    setMoves(moves);
-    return moves.map(move => ({
-      from: move.from,
-      to: move.to,
-      piece: move.piece,
-      fenBefore: move.before,
-      fenAfter: move.after,
-      san: move.san,
-      flags: move.flags
-    }));
-  };
-
-  const nextMove = () => {
-    if (game.length > move) {
-      const currentMove = moves[move];
-
-      setSides((prevSides) => {
-        let newSides = prevSides.map((side) => {
-          return {
-            ...side,
-            pieces: side.pieces.map((piece) => {
-              if (piece.position === currentMove.from) {
-                return { ...piece, position: currentMove.to };
-              } else if (piece.position === currentMove.to) {
-                return { ...piece, position: null }; // Captured
-              }
-              return piece;
-            })
-          };
-        });
-
-        console.log(currentMove.san);
-
-        // Handle castling
-        if (currentMove.piece === 'k' && currentMove.san === "O-O-O") {
-          if (currentMove.to === 'c1' || currentMove.to === 'c8') {
-            // Kingside castling
-            const rookPosition = currentMove.color === 'white' ? 'a1' : 'a8';
-            const rookNewPosition = currentMove.color === 'white' ? 'd1' : 'd8';
-            newSides = updateRookPosition(newSides, rookPosition, rookNewPosition);
-          } else if (currentMove.to === 'g1' || currentMove.to === 'g8') {
-            // Queenside castling
-            const rookPosition = currentMove.color === 'white' ? 'h1' : 'h8';
-            const rookNewPosition = currentMove.color === 'white' ? 'f1' : 'f8';
-            newSides = updateRookPosition(newSides, rookPosition, rookNewPosition);
-          }
-        }
-
-        return newSides;
-      });
-      setColorToMove(colorToMove === 'white' ? 'black' : 'white');
-      setMove(move + 1);
-  
-      const newMove = { from: moves[move].from, to: moves[move].to, image: getPieceImage(moves[move].piece) };
-      setNotation((prevNotation) => {
-        if (move % 2 === 0) {
-          return [...prevNotation, { white: newMove }];
-        } else {
-          const lastMove = prevNotation[prevNotation.length - 1];
-          lastMove.black = newMove;
-          return [...prevNotation.slice(0, -1), lastMove];
-        }
-      });
-    }
-  };
-  
-  const prevMove = () => {
-    if (move > 0) {
-      const prevMove = game[move - 1];
-      console.log(prevMove);
-
-      setSides(prevSides => {
-        let newSides = prevSides.map(side => {
-          return {
-            ...side,
-            pieces: side.pieces.map(piece =>
-              piece.position === prevMove.to
-                ? { ...piece, position: prevMove.from }
-                : piece
-            )
-          };
-        });
-
-        // Handle castling move reversal
-        if (prevMove.piece === 'k' && prevMove.san === "O-O-O") {
-          if (prevMove.to === 'c1' || prevMove.to === 'c8') {
-            const rookPosition = prevMove.color === 'white' ? 'd1' : 'd8';
-            const rookOriginalPosition = prevMove.color === 'white' ? 'a1' : 'a8';
-            newSides = updateRookPosition(newSides, rookPosition, rookOriginalPosition);
-          } else if (prevMove.to === 'g1' || prevMove.to === 'g8') {
-            const rookPosition = prevMove.color === 'white' ? 'f1' : 'f8';
-            const rookOriginalPosition = prevMove.color === 'white' ? 'h1' : 'h8';
-            newSides = updateRookPosition(newSides, rookPosition, rookOriginalPosition);
-          }
-        }
-
-        return newSides;
-      });
-      setColorToMove(colorToMove === 'white' ? 'black' : 'white');
-      setMove(move - 1);
-      setNotation(prevNotation => {
-        if (move % 2 === 1) {
-          return prevNotation.slice(0, -1);
-        } else {
-          const lastMove = prevNotation[prevNotation.length - 1];
-          delete lastMove.black;
-          return [...prevNotation.slice(0, -1), lastMove];
-        }
-      });
-    }
-  };
-
-  const updateRookPosition = (sides, rookPosition, rookNewPosition) => {
-    return sides.map((side) => {
-      return {
-        ...side,
-        pieces: side.pieces.map((piece) => {
-          if (piece.position === rookPosition) {
-            return { ...piece, position: rookNewPosition };
-          }
-          return piece;
-        })
-      };
-    });
-  };
-
-  function getPieceImage(piece) {
-    switch (piece.name) {
-      case 'pawn': return piece.color === 'white' ? <WhitePawn /> : <BlackPawn />;
-      case 'rook': return piece.color === 'white' ? <WhiteRook /> : <BlackRook />;
-      case 'knight': return piece.color === 'white' ? <WhiteKnight /> : <BlackKnight />;
-      case 'bishop': return piece.color === 'white' ? <WhiteBishop /> : <BlackBishop />;
-      case 'queen': return piece.color === 'white' ? <WhiteQueen /> : <BlackQueen />;
-      case 'king': return piece.color === 'white' ? <WhiteKing /> : <BlackKing />;
-      default: return null;
-    }
-  }  
-
   return (
     <>
       {promoteTo && (
-        <div className="promotion-modal">
-          <button onClick={() => promotePiece('queen')}>Queen</button>
-          <button onClick={() => promotePiece('rook')}>Rook</button>
-          <button onClick={() => promotePiece('bishop')}>Bishop</button>
-          <button onClick={() => promotePiece('knight')}>Knight</button>
-          <button onClick={() => setPromoteTo(null)}>Cancel</button>
-        </div>
-      )}
-      <div className="main">
-        <Board />
-        <div className="sidebar">
-          <ul>
-            {notation.map((move, index) => (
-              <li key={index}>
-                <span>{index + 1}. </span>
-                <span>{move.white.from} {move.white.to} {move.white.image}</span>
-                {move.black && <span> / {move.black.from} {move.black.to} {move.black.image}</span>}
-              </li>
-            ))}
-          </ul>
-        </div>
-      </div>
-      <div className="controls">
-        {game && (
-          <>
-            <button onClick={prevMove}>Previous Move</button>
-            <button onClick={nextMove}>Next Move</button>
-          </>
+          <div className="promotion-modal">
+            <button onClick={() => promotePiece('queen')}>Queen</button>
+            <button onClick={() => promotePiece('rook')}>Rook</button>
+            <button onClick={() => promotePiece('bishop')}>Bishop</button>
+            <button onClick={() => promotePiece('night')}>Knight</button>
+            <button onClick={() => setPromoteTo(null)}>Cancel</button>
+          </div>
         )}
-        <br />
-        <input type="file" className="w-full" accept=".pgn" onChange={handleFileUpload} />
-      </div>
-    </>
-  );
+        <Board />;
+      </>
+  )
  
 }
 
