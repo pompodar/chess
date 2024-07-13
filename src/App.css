@@ -5,9 +5,20 @@
   text-align: center;
 }
 
+#root h1 {
+  font-size: 22px;
+}
+
 .main {
   display: flex;
   gap: 8pc;
+}
+
+.board__wrapper {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
 }
 
 .board {
@@ -29,8 +40,9 @@
 }
 
 .sidebar {
-  max-height: 328px;
+  max-height: 320px;
   overflow: auto;
+  margin-top: 68px;
 }
 
 li {

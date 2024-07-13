@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import './App.css';
 import { Piece } from "@chessire/pieces";
 import { Chess } from 'chess.js';
@@ -23,15 +23,24 @@ function App() {
   const [highlightedCells, setHighlightedCells] = useState([]);
   const [promoteTo, setPromoteTo] = useState(null);
   const [pieceToPromote, setPieceToPromote] = useState(null);
+  const [title, setTitle] = useState("");
 
   const [notation, setNotation] = useState([]);
   const [moves, setMoves] = useState([]);
   const [move, setMove] = useState(0);
   const [capturedPieces, setCapturedPieces] = useState([]);
 
+  const sidebarRef = useRef(null);
+
+  useEffect(() => {
+    if (sidebarRef.current) {
+      sidebarRef.current.scrollTop = sidebarRef.current.scrollHeight;
+    }
+  }, [notation]);
+
   const [game, setGame] = useState(null);
   
-  const [sides, setSides] = useState([
+  const initialState = [
     {
       color: "white",
       pieces: [
@@ -74,7 +83,10 @@ function App() {
         { name: "pawn", color: "black", position: "h7", image: BlackPawn },
       ],
     },
-  ]);
+  ];
+
+  const [sides, setSides] = useState(initialState);
+
 
   function fillCell(key) {
     let pieceToInsert = { filled: false, position: key.toLowerCase() };
@@ -343,6 +355,7 @@ function App() {
   const convertPgnToGame = (pgn) => {
     const chess = new Chess();
     chess.loadPgn(pgn);
+    setTitle(chess._header.White + " vs " + chess._header.Black);
     const moves = chess.history({ verbose: true });
     setMoves(moves);
     return moves.map(move => ({
@@ -467,8 +480,6 @@ function App() {
       });
     }
   };
-  
-  
 
   const updateRookPosition = (sides, rookPosition, rookNewPosition) => {
     return sides.map((side) => {
@@ -496,6 +507,14 @@ function App() {
     }
   }  
 
+  const resetGame = () => {
+    setSides(initialState);
+    setCapturedPieces([]);
+    setColorToMove('white');
+    setMove(0);
+    setNotation([]);
+  };
+
   return (
     <>
       {promoteTo && (
@@ -508,8 +527,24 @@ function App() {
         </div>
       )}
       <div className="main">
-        <Board />
-        <div className="sidebar">
+        <div class="board__wrapper">
+          {game && (
+              <h1>{title}</h1>
+          )}
+          <Board />
+          <div className="controls">
+            {game && (
+              <>
+                <button onClick={resetGame}>Reset</button>
+                <button onClick={prevMove}>Previous Move</button>
+                <button onClick={nextMove}>Next Move</button>
+              </>
+            )}
+            <br />
+            <input type="file" className="w-full" accept=".pgn" onChange={handleFileUpload} />
+          </div>
+        </div>    
+        <div className="sidebar" ref={sidebarRef}>
           <ul>
             {notation.map((move, index) => (
               <li key={index}>
@@ -520,16 +555,6 @@ function App() {
             ))}
           </ul>
         </div>
-      </div>
-      <div className="controls">
-        {game && (
-          <>
-            <button onClick={prevMove}>Previous Move</button>
-            <button onClick={nextMove}>Next Move</button>
-          </>
-        )}
-        <br />
-        <input type="file" className="w-full" accept=".pgn" onChange={handleFileUpload} />
       </div>
     </>
   );
