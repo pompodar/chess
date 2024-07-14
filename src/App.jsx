@@ -367,14 +367,14 @@ function App() {
   }
 
   const Board = () => (
-    <div className="board">
+    <div className="flex">
       {["a", "b", "c", "d", "e", "f", "g", "h"].map((file) => (
         <div className="row" key={file}>
           {[1, 2, 3, 4, 5, 6, 7, 8].reverse().map((rank) => {
             const cell = fillCell(file + rank);
             return (
               <div
-                className={`cell ${highlightedCells.includes(cell.position) ? "highlight" : ""}`}
+                className={`cell w-10 h-10 border-2 flex justify-center items-center cursor-pointer ${highlightedCells.includes(cell.position) ? "bg-gray-100" : ""}`}
                 key={rank}
                 onClick={() => handleClickCell(cell)}
               >
@@ -570,6 +570,8 @@ function App() {
     setCapturedPieces([]);
     setColorToMove('white');
     setMove(0);
+    setTestedMoveFrom(null);
+    setTestedMovesNumber(0);
     setNotation([]);
   };
 
@@ -584,10 +586,10 @@ function App() {
           <button onClick={() => setPromoteTo(null)}>Cancel</button>
         </div>
       )}
-      <div className="main">
-        <div className="board__wrapper">
+      <div className="flex gap-2">
+        <div className="flex flex-col justify-center items-center">
           {game && (
-              <h1>{title}</h1>
+              <h1 className="text-2xl mb-2">{title}</h1>
           )}
           <Board />
           <div className="controls">
@@ -605,8 +607,8 @@ function App() {
             }
           </div>
         </div>    
-        <div className="sidebar">
-          <ul ref={sidebarRef}>
+        <div className="mt-16 w-64">
+          <ul className="h-64 overflow-auto mb-2" ref={sidebarRef}>
             {notation.map((move, index) => (
               <li key={index}>
                 <span>{index + 1}. </span>
