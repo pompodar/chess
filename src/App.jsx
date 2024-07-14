@@ -33,6 +33,10 @@ function App() {
   const [engine, setEngine] = useState(null);
   const [evaluation, setEvaluation] = useState(null);
 
+  const [testedMovesNumber, setTestedMovesNumber] = useState(0);
+  const [testedMoveFrom, setTestedMoveFrom] = useState(null);
+  const [testing, setTesting] = useState(false);
+
   const sidebarRef = useRef(null);
 
   useEffect(() => {
@@ -285,7 +289,20 @@ function App() {
       setSelectedPiece(cell);
       const moves = getPossibleMoves(cell, sides);
       setHighlightedCells(moves);
+
+      setTestedMoveFrom(cell.position);
     } else {
+      if (testing) {
+        if(moves[testedMovesNumber].from === testedMoveFrom && moves[testedMovesNumber].to === cell.position) {
+          console.log("correct");
+        } else {
+          console.log("wrong");
+          setSelectedPiece(null);
+          setHighlightedCells([]);
+          return;
+        }
+      }
+
       if (highlightedCells.includes(cell.position)) {
         setSides((prevSides) => {
           let newSides = prevSides.map((side) => {
@@ -315,9 +332,11 @@ function App() {
   
           return newSides;
         });
+
         setSelectedPiece(null);
         setHighlightedCells([]);
         setColorToMove(colorToMove === "white" ? "black" : "white");
+        setTestedMovesNumber(() => testedMovesNumber + 1)
       } else {
         setSelectedPiece(null);
         setHighlightedCells([]);
@@ -405,8 +424,6 @@ function App() {
     if (game.length > move) {
       const currentMove = moves[move];
 
-      console.log(currentMove, "currentMove");
-
       setSides((prevSides) => {
         let newSides = prevSides.map((side) => {
           return {
@@ -429,7 +446,6 @@ function App() {
             // Kingside castling
             const rookPosition = currentMove.color === 'w' ? 'a1' : 'a8';
             const rookNewPosition = currentMove.color === 'w' ? 'd1' : 'd8';
-            console.log(currentMove)
             newSides = updateRookPosition(newSides, rookPosition, rookNewPosition);
           } else if (currentMove.to === 'g1' || currentMove.to === 'g8') {
             // Queenside castling
@@ -462,8 +478,6 @@ function App() {
   const prevMove = () => {
     if (move > 0) {
       const prevMove = moves[move - 1];
-
-      console.log(game, "prevMove")
   
       setSides(prevSides => {
         let newSides = prevSides.map(side => {
@@ -481,6 +495,8 @@ function App() {
         const filteredCapturedPieces = capturedPieces.filter(p => p.position === prevMove.to);
         const capturedPiece = filteredCapturedPieces.length > 0 ? filteredCapturedPieces[filteredCapturedPieces.length - 1] : null;
     
+        console.log(capturedPiece);
+
         if (capturedPiece) {
           const opponentColor = prevMove.color === 'w' ? 'black' : 'white';
           const originalPosition = capturedPiece.position;
@@ -584,6 +600,9 @@ function App() {
             )}
             <br />
             <input type="file" className="w-full" accept=".pgn" onChange={handleFileUpload} />
+            { moves.length > 0 && 
+              <button onClick={() => setTesting(true)}>Test</button>
+            }
           </div>
         </div>    
         <div className="sidebar">
