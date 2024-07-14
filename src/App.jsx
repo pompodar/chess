@@ -412,6 +412,8 @@ function App() {
     chess.loadPgn(pgn);
     setTitle(chess._header.White + " vs " + chess._header.Black);
     const moves = chess.history({ verbose: true });
+    console.log(moves);
+
     return moves.map((move, index) => {
       const color = index % 2 === 0 ? 'w' : 'b'; // White moves on even indices, black on odd
       const moveNumber = index;
@@ -419,7 +421,8 @@ function App() {
           from: move.from,
           to: move.to,
           piece: move.piece,
-          fenBefore: move.fen,
+          fenBefore: move.before,
+          fenAfter: move.after,
           san: move.san,
           flags: move.flags,
           color,
@@ -483,7 +486,8 @@ function App() {
         }
       });
 
-      evaluatePosition(currentMove.after);
+      console.log(currentMove.fenAfter);
+      evaluatePosition(currentMove.fenAfter);
     }
   };
 
@@ -545,7 +549,8 @@ function App() {
         }
       });
 
-      evaluatePosition(prevMove.after);
+      console.log(prevMove.fenAfter);
+      evaluatePosition(prevMove.fenAfter);
     }
   };
 
