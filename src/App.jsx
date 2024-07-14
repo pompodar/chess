@@ -2,6 +2,10 @@ import { useState, useEffect, useRef } from 'react';
 import './App.css';
 import { Piece } from "@chessire/pieces";
 import { Chess } from 'chess.js';
+import { AiFillFastForward } from "react-icons/ai";
+import { AiFillFastBackward } from "react-icons/ai";
+import { AiFillStepBackward } from "react-icons/ai";
+import { AiFillStepForward } from "react-icons/ai";
 
 export const BlackPawn = () => <Piece color="black" piece="P" width={32} />;
 export const BlackRook = () => <Piece color="black" piece="R" width={32} />;
@@ -395,6 +399,7 @@ function App() {
         const pgnText = e.target.result;
         const gameConverted = convertPgnToGame(pgnText);
         setGame(gameConverted);
+        setMoves(gameConverted);
         setNotation([]);
         setMove(0);
       };
@@ -407,17 +412,20 @@ function App() {
     chess.loadPgn(pgn);
     setTitle(chess._header.White + " vs " + chess._header.Black);
     const moves = chess.history({ verbose: true });
-    setMoves(moves);
-    return moves.map(move => ({
-      from: move.from,
-      to: move.to,
-      piece: move.piece,
-      fenBefore: move.before,
-      fenAfter: move.after,
-      san: move.san,
-      flags: move.flags,
-      color: move.turn,
-    }));
+    return moves.map((move, index) => {
+      const color = index % 2 === 0 ? 'w' : 'b'; // White moves on even indices, black on odd
+      const moveNumber = index;
+      return {
+          from: move.from,
+          to: move.to,
+          piece: move.piece,
+          fenBefore: move.fen,
+          san: move.san,
+          flags: move.flags,
+          color,
+          moveNumber,
+      };
+    });
   };
 
   const nextMove = () => {
@@ -432,7 +440,11 @@ function App() {
               if (piece.position === currentMove.from) {
                 return { ...piece, position: currentMove.to };
               } else if (piece.position === currentMove.to) {
-                setCapturedPieces(prevArray => [...prevArray, piece]);
+                const capturedPiece = {
+                    ...piece,
+                    capturedAtMove: move,
+                };
+                setCapturedPieces(prevArray => [...prevArray, capturedPiece]);
                 return { ...piece, position: null }; // Captured
               }
               return piece;
@@ -492,11 +504,9 @@ function App() {
           };
         });
   
-        const filteredCapturedPieces = capturedPieces.filter(p => p.position === prevMove.to);
+        const filteredCapturedPieces = capturedPieces.filter(p => { return p.position === prevMove.to && p.capturedAtMove === (move - 1) } );
         const capturedPiece = filteredCapturedPieces.length > 0 ? filteredCapturedPieces[filteredCapturedPieces.length - 1] : null;
     
-        console.log(capturedPiece);
-
         if (capturedPiece) {
           const opponentColor = prevMove.color === 'w' ? 'black' : 'white';
           const originalPosition = capturedPiece.position;
@@ -592,12 +602,21 @@ function App() {
               <h1 className="text-2xl mb-2">{title}</h1>
           )}
           <Board />
-          <div className="controls">
+          <div className="m-2">
             {game && (
               <>
-                <button onClick={resetGame}>Reset</button>
-                <button onClick={prevMove}>Previous Move</button>
-                <button onClick={nextMove}>Next Move</button>
+                <button onClick={resetGame}>
+                  <AiFillStepBackward />
+                </button>
+                <button onClick={prevMove}>
+                  <AiFillFastBackward />
+                </button>
+                <button onClick={nextMove}>
+                  <AiFillStepForward />
+                </button>
+                <button onClick={nextMove}>
+                  <AiFillFastForward />
+                </button>
               </>
             )}
             <br />
