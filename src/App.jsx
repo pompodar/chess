@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import './App.css';
 import { Piece } from "@chessire/pieces";
 import { Chess } from 'chess.js';
+import axios from 'axios';
 import { AiFillFastForward } from "react-icons/ai";
 import { AiFillFastBackward } from "react-icons/ai";
 import { AiFillStepBackward } from "react-icons/ai";
@@ -22,6 +23,8 @@ export const WhiteQueen = () => <Piece color="white" piece="Q" width={32} />;
 export const WhiteKing = () => <Piece color="white" piece="K" width={32} />;
 
 function App() {
+  const [pgnFiles, setPgnFiles] = useState([]);
+
   const [colorToMove, setColorToMove] = useState("white");
   const [selectedPiece, setSelectedPiece] = useState(null);
   const [highlightedCells, setHighlightedCells] = useState([]);
@@ -42,6 +45,17 @@ function App() {
   const [testing, setTesting] = useState(false);
 
   const sidebarRef = useRef(null);
+
+  useEffect(() => {
+    axios.get('http://localhost:8000/api/pgn-files')
+      .then(response => {
+        setPgnFiles(response.data.files);
+        console.log(response.data.files);
+      })
+      .catch(error => {
+        console.error('Error fetching PGN files:', error);
+      });
+  }, []);
 
   useEffect(() => {
     if (sidebarRef.current) {
@@ -391,6 +405,41 @@ function App() {
     </div>
   );
 
+  const loadPgnFile = (fileName) => {
+    axios.get(`http://localhost:8000/api/pgn-files/${fileName}`)
+      .then(response => {
+        const pgn = response.data;
+        const chess = new Chess();
+        chess.loadPgn(pgn);
+
+        setTitle(chess._header.White + " vs " + chess._header.Black);
+
+        const moves = chess.history({ verbose: true }).map((move, index) => {
+          const color = index % 2 === 0 ? 'w' : 'b'; // White moves on even indices, black on odd
+          const moveNumber = index;
+          return {
+              from: move.from,
+              to: move.to,
+              piece: move.piece,
+              fenBefore: move.before,
+              fenAfter: move.after,
+              san: move.san,
+              flags: move.flags,
+              color,
+              moveNumber,
+          };
+        });
+
+        setGame(moves);
+        setMoves(moves);
+        setNotation([]);
+        setMove(0);
+      })
+      .catch(error => {
+        console.error('Error loading PGN file:', error);
+      });
+  };
+
   const handleFileUpload = (event) => {
     const file = event.target.files[0];
     if (file) {
@@ -412,7 +461,6 @@ function App() {
     chess.loadPgn(pgn);
     setTitle(chess._header.White + " vs " + chess._header.Black);
     const moves = chess.history({ verbose: true });
-    console.log(moves);
 
     return moves.map((move, index) => {
       const color = index % 2 === 0 ? 'w' : 'b'; // White moves on even indices, black on odd
@@ -602,6 +650,13 @@ function App() {
         </div>
       )}
       <div className="flex gap-2">
+        <ul className="mt-16 h-64 overflow-auto w-64">
+          {pgnFiles.map(file => (
+            <li className="cursor-pointer" key={file} onClick={() => loadPgnFile(file.fileName)}>
+              {file.friendlyName}
+            </li>
+          ))}
+        </ul>
         <div className="flex flex-col justify-center items-center">
           {game && (
               <h1 className="text-2xl mb-2">{title}</h1>
