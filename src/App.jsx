@@ -799,8 +799,8 @@ function App() {
           <h2 className="text-lg mt-4">PGN Files</h2>
           <input
             type="text"
-            className="border-2"
-            placeholder=""
+            className="border-2 p-1"
+            placeholder="search"
             value={searchTerm}
             onChange={(e) => {
               setSearchTerm(e.target.value);
