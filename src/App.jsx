@@ -33,7 +33,11 @@ function App() {
   const [user, setUser] = useState(null);
   const [notice, setNotice] = useState("");
 
+  const [searchTerm, setSearchTerm] = useState('');
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
   const [pgnFiles, setPgnFiles] = useState([]);
+  const [filteredFiles, setFilteredFiles] = useState([]);
 
   const [colorToMove, setColorToMove] = useState("white");
   const [selectedPiece, setSelectedPiece] = useState(null);
@@ -81,19 +85,26 @@ function App() {
     });
   };
 
-  function fetchPngFiles () {
-    axios.get('https://plum-goldenrod-clove.glitch.me/api/pgn-files')
-    .then(response => {
+  const fetchPgnFiles = async (page = currentPage, search = '', limit = 1) => {
+    try {
+      const response = await axios.get('http://localhost:8000/api/pgn-files', {
+        params: { page, search }
+      });
       setPgnFiles(response.data.files);
-      console.log(response.data.files);
-    })
-    .catch(error => {
-      console.error('Error fetching PGN files:', error);
-    });
-  }
+      setFilteredFiles(response.data.files); 
+      setTotalPages(response.data.totalPages);
+    } catch (error) {
+      console.error('Failed to fetch PGN files', error);
+    }
+  };
 
   useEffect(() => {
-    fetchPngFiles();
+    fetchPgnFiles(currentPage, searchTerm, 2);
+
+  }, [pgnFiles, currentPage, searchTerm]);
+
+  useEffect(() => {
+    fetchPgnFiles();
 
       const unsubscribe = onAuthStateChanged(firebaseAuth, (currentUser) => {
         setUser(currentUser);
@@ -530,7 +541,7 @@ function App() {
             setNotice("");
           }, 2000);
 
-          fetchPngFiles();
+          fetchPgnFiles();
         } catch (error) {
           setNotice('Failed to upload file.');
         }
@@ -736,6 +747,10 @@ function App() {
     setNotation([]);
   };
 
+  const handlePageChange = (page) => {
+    setCurrentPage(page);
+  };
+
   return (
     <>
       {!user && (
@@ -777,13 +792,37 @@ function App() {
         </div>
       )}
       <div className="flex flex-col lg:flex-row gap-2 items-center lg:items-start">
-        <ul className="mt-4 lg:mt-16 h-12 lg:h-64 overflow-auto w-64">
-          {pgnFiles.map(file => (
-            <li className="cursor-pointer" key={file} onClick={() => loadPgnFile(file.fileName)}>
-              {file.friendlyName}
-            </li>
-          ))}
-        </ul>
+        <div>
+          <h2 className="text-lg mt-4">PGN Files</h2>
+          <input
+            type="text"
+            className="border-2"
+            placeholder=""
+            value={searchTerm}
+            onChange={(e) => {
+              setSearchTerm(e.target.value);
+              setCurrentPage(1);
+            }}
+          />
+          <ul className="max-h-12 lg:max-h-48 overflow-auto w-64">
+            {filteredFiles.map((file) => (
+              <li className="cursor-pointer" key={file} onClick={() => loadPgnFile(file.fileName)}>
+                {file.friendlyName}
+              </li>
+            ))}
+          </ul>
+          <div>
+            {Array.from({ length: totalPages }, (_, index) => (
+              <button
+                key={index}
+                onClick={() => handlePageChange(index + 1)}
+                disabled={currentPage === index + 1}
+              >
+                {index + 1}
+              </button>
+            ))}
+          </div>
+        </div>
         <div className="flex flex-col justify-center items-center">
           {(game && user) && (
               <h1 className="text-2xl mb-2">{title}</h1>
@@ -818,16 +857,21 @@ function App() {
             }
           </div>
         </div>    
-        <div className="mt-4 lg:mt-16 w-64">
-          <ul className="h-12 lg:h-64 overflow-auto mb-2" ref={sidebarRef}>
-            {notation.map((move, index) => (
-              <li key={index}>
-                <span>{index + 1}. </span>
-                <span>{move.white.from} {move.white.to} {move.white.image}</span>
-                {move.black && <span> / {move.black.from} {move.black.to} {move.black.image}</span>}
-              </li>
-            ))}
-          </ul>
+        <div className="mt-4  w-64">
+          {notation.length > 0 && (
+            <div>
+              <h2 className="text-lg">Notation</h2>
+              <ul className="max-h-12 lg:max-h-48 overflow-auto mb-2" ref={sidebarRef}>
+                {notation.map((move, index) => (
+                  <li key={index}>
+                    <span>{index + 1}. </span>
+                    <span>{move.white.from} {move.white.to} {move.white.image}</span>
+                    {move.black && <span> / {move.black.from} {move.black.to} {move.black.image}</span>}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
           {(evaluation && user) && (
             <div>
               Evaluation: {evaluation.type === 'cp' ? evaluation.value / 100 : 'Mate in ' + evaluation.value}
