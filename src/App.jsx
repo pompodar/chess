@@ -815,7 +815,7 @@ function App() {
             ))}
           </ul>
           <div>
-            {Array.from({ length: totalPages }, (_, index) => (
+            {totalPages > 1 && Array.from({ length: totalPages }, (_, index) => (
               <button
                 key={index}
                 onClick={() => handlePageChange(index + 1)}
