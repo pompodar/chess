@@ -7,6 +7,13 @@ import { AiFillFastForward } from "react-icons/ai";
 import { AiFillFastBackward } from "react-icons/ai";
 import { AiFillStepBackward } from "react-icons/ai";
 import { AiFillStepForward } from "react-icons/ai";
+import { AiOutlineLogin } from "react-icons/ai";
+import { AiOutlineLogout } from "react-icons/ai";
+import { signInWithGoogle } from "./config/firebase";
+import { auth as firebaseAuth } from './config/firebase';
+import { onAuthStateChanged, getAuth, signOut } from 'firebase/auth';
+
+export const Logo = () => <Piece color="white" piece="N" width={64} />;
 
 export const BlackPawn = () => <Piece color="black" piece="P" width={32} />;
 export const BlackRook = () => <Piece color="black" piece="R" width={32} />;
@@ -23,6 +30,9 @@ export const WhiteQueen = () => <Piece color="white" piece="Q" width={32} />;
 export const WhiteKing = () => <Piece color="white" piece="K" width={32} />;
 
 function App() {
+  const [user, setUser] = useState(null);
+  const [notice, setNotice] = useState("");
+
   const [pgnFiles, setPgnFiles] = useState([]);
 
   const [colorToMove, setColorToMove] = useState("white");
@@ -46,15 +56,57 @@ function App() {
 
   const sidebarRef = useRef(null);
 
+  const submitWithGoogle = async (e) => {
+    e.preventDefault();
+    try {
+        signInWithGoogle();
+
+        setNotice("Successfully signed in!");
+
+        setTimeout(() => {
+          setNotice("");
+        }, 2000);
+    } catch (error) {
+        console.error("Google sign-in failed:", error);
+    }
+  };
+
+  const handleLogout = () => {
+    const auth = getAuth();
+    signOut(auth).then(() => {
+        console.log("User signed-out successfully.");
+        setUser(null);
+    }).catch((error) => {
+        console.log("Error when signing-out");
+    });
+  };
+
+  function fetchPngFiles () {
+    axios.get('https://plum-goldenrod-clove.glitch.me/api/pgn-files')
+    .then(response => {
+      setPgnFiles(response.data.files);
+      console.log(response.data.files);
+    })
+    .catch(error => {
+      console.error('Error fetching PGN files:', error);
+    });
+  }
+
   useEffect(() => {
-    axios.get('http://localhost:8000/api/pgn-files')
-      .then(response => {
-        setPgnFiles(response.data.files);
-        console.log(response.data.files);
-      })
-      .catch(error => {
-        console.error('Error fetching PGN files:', error);
+    fetchPngFiles();
+
+      const unsubscribe = onAuthStateChanged(firebaseAuth, (currentUser) => {
+        setUser(currentUser);
+        
+        if (currentUser) {
+            console.log("User set on auth state changed in Authenticated layout", currentUser);
+        } else {
+            console.log("User not on on auth state changed in Authenticated layout", currentUser);
+        }
       });
+  
+      // Cleanup subscription on unmount
+      return () => unsubscribe();
   }, []);
 
   useEffect(() => {
@@ -302,6 +354,11 @@ function App() {
   }
 
   function handleClickCell(cell) {
+    if (!user) {
+      setNotice("You better first log in");
+      return;
+    }
+
     if (!selectedPiece) {
       if (!cell.filled || colorToMove !== cell.color) return;
       setSelectedPiece(cell);
@@ -406,7 +463,7 @@ function App() {
   );
 
   const loadPgnFile = (fileName) => {
-    axios.get(`http://localhost:8000/api/pgn-files/${fileName}`)
+    axios.get(`https://plum-goldenrod-clove.glitch.me/api/pgn-files/${fileName}`)
       .then(response => {
         const pgn = response.data;
         const chess = new Chess();
@@ -441,16 +498,42 @@ function App() {
   };
 
   const handleFileUpload = (event) => {
+    if (!user) {
+      setNotice("You better first log in");
+      return;
+    }
+
     const file = event.target.files[0];
     if (file) {
+      const formData = new FormData();
+      formData.append('file', file);
+
       const reader = new FileReader();
-      reader.onload = (e) => {
+      reader.onload = async (e) => {
         const pgnText = e.target.result;
         const gameConverted = convertPgnToGame(pgnText);
         setGame(gameConverted);
         setMoves(gameConverted);
         setNotation([]);
         setMove(0);
+
+        try {
+          const response = await axios.post('https://plum-goldenrod-clove.glitch.me/api/pgn-files-save', formData, {
+            headers: {
+              'Content-Type': 'multipart/form-data',
+            },
+          });
+
+          setNotice(response.data.message);
+
+          setTimeout(() => {
+            setNotice("");
+          }, 2000);
+
+          fetchPngFiles();
+        } catch (error) {
+          setNotice('Failed to upload file.');
+        }
       };
       reader.readAsText(file);
     }
@@ -480,6 +563,11 @@ function App() {
   };
 
   const nextMove = () => {
+    if (!user) {
+      setNotice("You better first log in");
+      return;
+    }
+
     if (game.length > move) {
       const currentMove = moves[move];
 
@@ -540,6 +628,11 @@ function App() {
   };
 
   const prevMove = () => {
+    if (!user) {
+      setNotice("You better first log in");
+      return;
+    }
+
     if (move > 0) {
       const prevMove = moves[move - 1];
   
@@ -629,6 +722,11 @@ function App() {
   }  
 
   const resetGame = () => {
+    if (!user) {
+      setNotice("You better first log in");
+      return;
+    }
+
     setSides(initialState);
     setCapturedPieces([]);
     setColorToMove('white');
@@ -640,7 +738,36 @@ function App() {
 
   return (
     <>
-      {promoteTo && (
+      {!user && (
+        <div className="flex gap-2 justify-center items-center  mb-2">
+          <div className="relative after:w-2 after:h-2 after:bg-[aqua] after:absolute after:top-[17px] after:right-[11px] after:rounded-full after:z-[-1]">
+            <Logo />
+          </div>
+          <form className="inline" onSubmit={submitWithGoogle}>
+              <div>
+                  <button className="lg:ms-4" 
+                    // disabled={processing}
+                  >
+                      <AiOutlineLogin />
+                  </button>
+              </div>
+          </form>
+        </div>
+      )}
+      {user && (
+        <div className="flex gap-2 justify-center items-center">
+          <div className="relative after:w-2 after:h-2 after:bg-[aqua] after:absolute after:top-[17px] after:right-[11px] after:rounded-full after:z-[-1]">
+            <Logo />
+          </div>
+          <p className="inline">
+            {user.displayName}
+          </p>
+          <button className="mb-2" onClick={() => handleLogout()}>
+            <AiOutlineLogout />
+          </button>
+        </div> 
+      )}
+      {(promoteTo && user) && (
         <div className="promotion-modal">
           <button onClick={() => promotePiece('queen')}>Queen</button>
           <button onClick={() => promotePiece('rook')}>Rook</button>
@@ -649,8 +776,8 @@ function App() {
           <button onClick={() => setPromoteTo(null)}>Cancel</button>
         </div>
       )}
-      <div className="flex gap-2">
-        <ul className="mt-16 h-64 overflow-auto w-64">
+      <div className="flex flex-col lg:flex-row gap-2 items-center lg:items-start">
+        <ul className="mt-4 lg:mt-16 h-12 lg:h-64 overflow-auto w-64">
           {pgnFiles.map(file => (
             <li className="cursor-pointer" key={file} onClick={() => loadPgnFile(file.fileName)}>
               {file.friendlyName}
@@ -658,12 +785,12 @@ function App() {
           ))}
         </ul>
         <div className="flex flex-col justify-center items-center">
-          {game && (
+          {(game && user) && (
               <h1 className="text-2xl mb-2">{title}</h1>
           )}
           <Board />
           <div className="m-2">
-            {game && (
+            {(game && user) && (
               <>
                 <button onClick={resetGame}>
                   <AiFillStepBackward />
@@ -680,14 +807,19 @@ function App() {
               </>
             )}
             <br />
-            <input type="file" className="w-full" accept=".pgn" onChange={handleFileUpload} />
-            { moves.length > 0 && 
+            <input type="file" className="w-full mt-2" accept=".pgn" onChange={handleFileUpload} />
+            { (moves.length > 0 && user) && 
               <button onClick={() => setTesting(true)}>Test</button>
+            }
+            { notice && 
+              <p>
+                {notice}
+              </p>
             }
           </div>
         </div>    
-        <div className="mt-16 w-64">
-          <ul className="h-64 overflow-auto mb-2" ref={sidebarRef}>
+        <div className="mt-4 lg:mt-16 w-64">
+          <ul className="h-12 lg:h-64 overflow-auto mb-2" ref={sidebarRef}>
             {notation.map((move, index) => (
               <li key={index}>
                 <span>{index + 1}. </span>
@@ -696,7 +828,7 @@ function App() {
               </li>
             ))}
           </ul>
-          {evaluation && (
+          {(evaluation && user) && (
             <div>
               Evaluation: {evaluation.type === 'cp' ? evaluation.value / 100 : 'Mate in ' + evaluation.value}
             </div>
