@@ -87,7 +87,7 @@ function App() {
 
   const fetchPgnFiles = async (page = currentPage, search = '', limit = 1) => {
     try {
-      const response = await axios.get('http://localhost:8000/api/pgn-files', {
+      const response = await axios.get('https://plum-goldenrod-clove.glitch.me/api/pgn-files', {
         params: { page, search }
       });
       setPgnFiles(response.data.files);
