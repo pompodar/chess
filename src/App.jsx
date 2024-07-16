@@ -12,6 +12,7 @@ import { AiOutlineLogout } from "react-icons/ai";
 import { signInWithGoogle } from "./config/firebase";
 import { auth as firebaseAuth } from './config/firebase';
 import { onAuthStateChanged, getAuth, signOut } from 'firebase/auth';
+import debounce from 'lodash.debounce';
 
 export const Logo = () => <Piece color="white" piece="N" width={64} />;
 
@@ -98,14 +99,14 @@ function App() {
     }
   };
 
+  const debouncedFetchPgnFiles = debounce(fetchPgnFiles, 300);
+
   useEffect(() => {
-    fetchPgnFiles(currentPage, searchTerm, 2);
+    debouncedFetchPgnFiles(currentPage, searchTerm, 2);
 
   }, [pgnFiles, currentPage, searchTerm]);
 
   useEffect(() => {
-    fetchPgnFiles();
-
       const unsubscribe = onAuthStateChanged(firebaseAuth, (currentUser) => {
         setUser(currentUser);
         
