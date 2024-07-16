@@ -101,7 +101,7 @@ function App() {
     }
   };
 
-  const debouncedFetchPgnFiles = useCallback(debounce(fetchPgnFiles, 500), []);
+  const debouncedFetchPgnFiles = useCallback(debounce(fetchPgnFiles, 250), []);
 
   useEffect(() => {
     debouncedFetchPgnFiles(currentPage, searchTerm, 1);
