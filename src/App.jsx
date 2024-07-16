@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import './App.css';
 import { Piece } from "@chessire/pieces";
 import { Chess } from 'chess.js';
@@ -88,7 +88,9 @@ function App() {
 
   const fetchPgnFiles = async (page = currentPage, search = '', limit = 1) => {
     try {
+      // const response = await axios.get('https://plum-goldenrod-clove.glitch.me/api/pgn-files', {
       const response = await axios.get('https://plum-goldenrod-clove.glitch.me/api/pgn-files', {
+
         params: { page, search }
       });
       setPgnFiles(response.data.files);
@@ -99,11 +101,11 @@ function App() {
     }
   };
 
-  const debouncedFetchPgnFiles = debounce(fetchPgnFiles, 300);
+  const debouncedFetchPgnFiles = useCallback(debounce(fetchPgnFiles, 500), []);
 
   useEffect(() => {
-    debouncedFetchPgnFiles(currentPage, searchTerm, 2);
-
+    debouncedFetchPgnFiles(currentPage, searchTerm, 1);
+    //fetchPgnFiles(currentPage, searchTerm, 1);
   }, [pgnFiles, currentPage, searchTerm]);
 
   useEffect(() => {
