@@ -393,7 +393,7 @@ function App() {
         const [file, rank] = piece.position.split('');
         const col = file.charCodeAt(0) - 'a'.charCodeAt(0);
         const row = 8 - parseInt(rank, 10);
-        board[row][col] = (piece.color === 'white' ? piece.name[0].toUpperCase() : piece.name[0]);
+        board[row][col] = (piece.color === 'white' ? (piece.name === "knight" ? "N" : piece.name[0].toUpperCase()) : (piece.name === "knight" ? "n" : piece.name[0]));
       });
     });
     
