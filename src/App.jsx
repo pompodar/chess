@@ -54,6 +54,7 @@ function App() {
 
   const [engine, setEngine] = useState(null);
   const [evaluation, setEvaluation] = useState(null);
+  const [bestMove, setBestMove] = useState(null);
 
   const [testedMovesNumber, setTestedMovesNumber] = useState(0);
   const [testedMoveFrom, setTestedMoveFrom] = useState(null);
@@ -145,6 +146,7 @@ function App() {
       }
 
       if (message.startsWith('bestmove')) {
+        setBestMove(message.split(' ')[1]);
         console.log('Best move:', message.split(' ')[1]);
       }    
     };
@@ -155,6 +157,7 @@ function App() {
   }, []);
 
   const getBestMove = (fen) => {
+    console.log(fen);
     const stockfish = new Worker('./stockfish.js');
 
     // Set up the position from FEN
@@ -381,6 +384,53 @@ function App() {
     );
   }
 
+  const generateFEN = (sides, mode = "test") => {
+    let fen = "";
+    const board = Array(8).fill(null).map(() => Array(8).fill(null));
+    
+    sides.forEach(side => {
+      side.pieces.forEach(piece => {
+        const [file, rank] = piece.position.split('');
+        const col = file.charCodeAt(0) - 'a'.charCodeAt(0);
+        const row = 8 - parseInt(rank, 10);
+        board[row][col] = (piece.color === 'white' ? piece.name[0].toUpperCase() : piece.name[0]);
+      });
+    });
+    
+    for (let row = 0; row < 8; row++) {
+      let emptyCount = 0;
+      for (let col = 0; col < 8; col++) {
+        if (board[row][col]) {
+          if (emptyCount > 0) {
+            fen += emptyCount;
+            emptyCount = 0;
+          }
+          fen += board[row][col];
+        } else {
+          emptyCount++;
+        }
+      }
+      if (emptyCount > 0) {
+        fen += emptyCount;
+      }
+      if (row < 7) {
+        fen += "/";
+      }
+    }
+    
+    if (mode === "test") {
+      fen += ` ${colorToMove === "white" ? "w" : "b"}`;
+    } else {
+      fen += ` ${colorToMove === "white" ? "b" : "w"}`;
+    }
+    
+    // Castling availability, en passant, halfmove clock, fullmove number
+    // For simplicity, these are placeholders and need to be replaced with actual values
+    fen += ` KQkq - 0 1`;
+    
+    return fen;
+  };  
+
   function handleClickCell(cell) {
     if (!user) {
       setNotice("You better first log in");
@@ -432,13 +482,21 @@ function App() {
             setPieceToPromote(selectedPiece);
             setPromoteTo(true);
           }
+
+          // Generate and log FEN string
+          const newFEN = generateFEN(newSides, "play");
+
+          setColorToMove(colorToMove === "white" ? "black" : "white");
+
+          getBestMove(newFEN);
+
+          evaluatePosition(newFEN);
   
           return newSides;
         });
 
         setSelectedPiece(null);
         setHighlightedCells([]);
-        setColorToMove(colorToMove === "white" ? "black" : "white");
         setTestedMovesNumber(() => testedMovesNumber + 1)
       } else {
         setSelectedPiece(null);
@@ -650,7 +708,6 @@ function App() {
         }
       });
 
-      console.log(currentMove.fenAfter);
       evaluatePosition(currentMove.fenAfter);
       
       getBestMove(currentMove.fenAfter);
@@ -720,7 +777,6 @@ function App() {
         }
       });
 
-      console.log(prevMove.fenAfter);
       evaluatePosition(prevMove.fenAfter);
     }
   };
@@ -894,6 +950,11 @@ function App() {
           {(evaluation && user) && (
             <div>
               Evaluation: {evaluation.type === 'cp' ? evaluation.value / 100 : 'Mate in ' + evaluation.value}
+            </div>
+          )}
+          {(bestMove && user) && (
+            <div>
+              Best move: {bestMove}
             </div>
           )}
         </div>
