@@ -143,12 +143,26 @@ function App() {
           setEvaluation({ type, value });
         }
       }
+
+      if (message.startsWith('bestmove')) {
+        console.log('Best move:', message.split(' ')[1]);
+      }    
     };
 
     return () => {
       stockfish.terminate();
     };
   }, []);
+
+  const getBestMove = (fen) => {
+    const stockfish = new Worker('./stockfish.js');
+
+    // Set up the position from FEN
+    stockfish.postMessage(`position fen ${fen}`);
+    
+    // Ask for the best move
+    stockfish.postMessage('go depth 15');
+  };
 
   const evaluatePosition = (fen) => {
     if (engine) {
@@ -457,14 +471,14 @@ function App() {
 
   const Board = () => (
     <div className="flex">
-      {["a", "b", "c", "d", "e", "f", "g", "h"].map((file) => (
-        <div className="row" key={file}>
+      {["a", "b", "c", "d", "e", "f", "g", "h"].map((file, index) => (
+        <div className="row" key={index}>
           {[1, 2, 3, 4, 5, 6, 7, 8].reverse().map((rank) => {
             const cell = fillCell(file + rank);
             return (
               <div
                 className={`cell w-10 h-10 border-2 flex justify-center items-center cursor-pointer ${highlightedCells.includes(cell.position) ? "bg-gray-100" : ""}`}
-                key={rank}
+                key={index + rank}
                 onClick={() => handleClickCell(cell)}
               >
                 {cell.filled && cell.image}
@@ -638,6 +652,8 @@ function App() {
 
       console.log(currentMove.fenAfter);
       evaluatePosition(currentMove.fenAfter);
+      
+      getBestMove(currentMove.fenAfter);
     }
   };
 
@@ -809,7 +825,7 @@ function App() {
           />
           <ul className="max-h-12 lg:max-h-48 overflow-auto w-64">
             {filteredFiles.map((file) => (
-              <li className="cursor-pointer" key={file} onClick={() => loadPgnFile(file.fileName)}>
+              <li className="cursor-pointer" key={file.fileName} onClick={() => loadPgnFile(file.fileName)}>
                 {file.friendlyName}
               </li>
             ))}
