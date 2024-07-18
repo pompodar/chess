@@ -55,10 +55,13 @@ function App() {
   const [engine, setEngine] = useState(null);
   const [evaluation, setEvaluation] = useState(null);
   const [bestMove, setBestMove] = useState(null);
+  const [moveTaken, setMoveTaken] = useState(false);
 
   const [testedMovesNumber, setTestedMovesNumber] = useState(0);
   const [testedMoveFrom, setTestedMoveFrom] = useState(null);
   const [testing, setTesting] = useState(false);
+
+  const [play, setPlay] = useState(false);
 
   const sidebarRef = useRef(null);
 
@@ -132,6 +135,7 @@ function App() {
 
   useEffect(() => {
     const stockfish = new Worker('./stockfish.js');
+  
     setEngine(stockfish);
 
     stockfish.onmessage = (event) => {
@@ -146,8 +150,11 @@ function App() {
       }
 
       if (message.startsWith('bestmove')) {
-        setBestMove(message.split(' ')[1]);
-        console.log('Best move:', message.split(' ')[1]);
+        console.log(message)
+
+        if (!play) {
+          debouncedNextMove(message.split(' ')[1]);
+        }
       }    
     };
 
@@ -157,14 +164,11 @@ function App() {
   }, []);
 
   const getBestMove = (fen) => {
-    console.log(fen);
-    const stockfish = new Worker('./stockfish.js');
-
     // Set up the position from FEN
-    stockfish.postMessage(`position fen ${fen}`);
+    engine.postMessage(`position fen ${fen}`);
     
     // Ask for the best move
-    stockfish.postMessage('go depth 15');
+    engine.postMessage('go depth 2');
   };
 
   const evaluatePosition = (fen) => {
@@ -283,7 +287,7 @@ function App() {
       knight: (piece) => knightMoves(piece, sides),
       bishop: (piece) => linearMoves(piece, sides, [[1, 1], [1, -1], [-1, 1], [-1, -1]]),
       queen: (piece) => linearMoves(piece, sides, [[1, 0], [-1, 0], [0, 1], [0, -1], [1, 1], [1, -1], [-1, 1], [-1, -1]]),
-      king: (piece) => kingMoves(piece, sides),
+      king: (piece) => kingMoves(piece, sides, "KQkq"),
     };
 
     return directions[piece.name](piece);
@@ -340,7 +344,7 @@ function App() {
     return moves;
   }
 
-  function kingMoves(piece, sides) {
+  function kingMoves(piece, sides, castlingRights) {
     const moves = [];
     const [file, rank] = piece.position.split('');
     const fileIndex = file.charCodeAt(0) - 'a'.charCodeAt(0);
@@ -363,8 +367,58 @@ function App() {
       }
     });
 
+    // Add castling moves
+    // if (!piece.hasMoved && !isInCheck(piece.position, piece.color, sides)) {
+    if (1 == 1) {
+      if (piece.color === 'white') {
+        // White castling
+        if (castlingRights.includes('K')) {
+          if (canCastle(piece.position, 'h1', sides, piece.color)) {
+            moves.push('g1'); // Kingside castling
+          }
+        }
+        if (castlingRights.includes('Q')) {
+          if (canCastle(piece.position, 'a1', sides, piece.color)) {
+            moves.push('c1'); // Queenside castling
+          }
+        }
+      } else {
+        // Black castling
+        if (castlingRights.includes('k')) {
+          if (canCastle(piece.position, 'h8', sides, piece.color)) {
+            moves.push('g8'); // Kingside castling
+          }
+        }
+        if (castlingRights.includes('q')) {
+          if (canCastle(piece.position, 'a8', sides, piece.color)) {
+            moves.push('c8'); // Queenside castling
+          }
+        }
+      }
+    }
+
     return moves;
-  }
+}
+
+function canCastle(kingPosition, rookPosition, sides, color) {
+    const kingFile = kingPosition[0];
+    const kingRank = kingPosition[1];
+    const rookFile = rookPosition[0];
+
+    const step = kingFile < rookFile ? 1 : -1;
+    let currentFile = String.fromCharCode(kingFile.charCodeAt(0) + step);
+
+    while (currentFile !== rookFile) {
+      const currentPosition = currentFile + kingRank;
+      //if (isOccupied(currentPosition, sides) || isInCheck(currentPosition, color, sides)) {
+      if (isOccupied(currentPosition, sides)) {
+        return false;
+      }
+      currentFile = String.fromCharCode(currentFile.charCodeAt(0) + step);
+    }
+
+    return true;
+}
 
   function isOccupied(position, sides) {
     return sides.some(side => side.pieces.some(piece => piece.position === position));
@@ -390,10 +444,12 @@ function App() {
     
     sides.forEach(side => {
       side.pieces.forEach(piece => {
-        const [file, rank] = piece.position.split('');
-        const col = file.charCodeAt(0) - 'a'.charCodeAt(0);
-        const row = 8 - parseInt(rank, 10);
-        board[row][col] = (piece.color === 'white' ? (piece.name === "knight" ? "N" : piece.name[0].toUpperCase()) : (piece.name === "knight" ? "n" : piece.name[0]));
+        if (piece.position) { // Check if the piece has a valid position
+          const [file, rank] = piece.position.split('');
+          const col = file.charCodeAt(0) - 'a'.charCodeAt(0);
+          const row = 8 - parseInt(rank, 10);
+          board[row][col] = (piece.color === 'white' ? (piece.name === "knight" ? "N" : piece.name[0].toUpperCase()) : (piece.name === "knight" ? "n" : piece.name[0]));
+        }
       });
     });
     
@@ -427,6 +483,8 @@ function App() {
     // Castling availability, en passant, halfmove clock, fullmove number
     // For simplicity, these are placeholders and need to be replaced with actual values
     fen += ` KQkq - 0 1`;
+
+    console.log("FEN", fen);
     
     return fen;
   };  
@@ -483,6 +541,27 @@ function App() {
             setPromoteTo(true);
           }
 
+          // Handle castling
+          if (selectedPiece.name === "king" && Math.abs(file.charCodeAt(0) - selectedPiece.position[0].charCodeAt(0)) === 2) {
+            const isKingside = cell.position[0] === 'g';
+            const rookInitialPosition = isKingside ? 'h' + rank : 'a' + rank;
+            const rookNewPosition = isKingside ? 'f' + rank : 'd' + rank;
+
+            newSides = newSides.map((side) => {
+              if (side.color === selectedPiece.color) {
+                return {
+                  ...side,
+                  pieces: side.pieces.map((piece) => 
+                    piece.position === rookInitialPosition 
+                      ? { ...piece, position: rookNewPosition } 
+                      : piece
+                  )
+                };
+              }
+              return side;
+            });
+          }
+
           // Generate and log FEN string
           const newFEN = generateFEN(newSides, "play");
 
@@ -497,7 +576,7 @@ function App() {
 
         setSelectedPiece(null);
         setHighlightedCells([]);
-        setTestedMovesNumber(() => testedMovesNumber + 1)
+        setTestedMovesNumber(() => testedMovesNumber + 1);
       } else {
         setSelectedPiece(null);
         setHighlightedCells([]);
@@ -648,71 +727,120 @@ function App() {
     });
   };
 
-  const nextMove = () => {
+  const nextMove = async (bestMove = false) => {
     if (!user) {
       setNotice("You better first log in");
-      return;
+      //return;
     }
+  
+    let currentMove;
 
-    if (game.length > move) {
-      const currentMove = moves[move];
+    const moveData = bestMove ? { from: bestMove.slice(0, 2), to: bestMove.slice(2, 4) } : moves[move];
 
-      setSides((prevSides) => {
-        let newSides = prevSides.map((side) => {
-          return {
-            ...side,
-            pieces: side.pieces.map((piece) => {
-              if (piece.position === currentMove.from) {
-                return { ...piece, position: currentMove.to };
-              } else if (piece.position === currentMove.to) {
-                const capturedPiece = {
-                    ...piece,
-                    capturedAtMove: move,
-                };
-                setCapturedPieces(prevArray => [...prevArray, capturedPiece]);
-                return { ...piece, position: null }; // Captured
-              }
-              return piece;
-            })
-          };
+    console.log(moveData, "moveData");
+
+    // Check if the bestMove positions are valid
+    const isNotValidMove = (move) => {
+        const fromPosition = move.from;
+        const toPosition = move.to;
+        let fromExists = false;
+        let toExists = false;
+
+        sides.forEach(side => {
+            side.pieces.forEach(piece => {
+                if (piece.position === fromPosition) {
+                    fromExists = true;
+                }
+                if (piece.position === toPosition) {
+                    toExists = true;
+                }
+            });
         });
 
-        // Handle castling
-        if (currentMove.piece === 'k' && currentMove.san.includes("O-O")) {
-          if (currentMove.to === 'c1' || currentMove.to === 'c8') {
-            // Kingside castling
-            const rookPosition = currentMove.color === 'w' ? 'a1' : 'a8';
-            const rookNewPosition = currentMove.color === 'w' ? 'd1' : 'd8';
-            newSides = updateRookPosition(newSides, rookPosition, rookNewPosition);
-          } else if (currentMove.to === 'g1' || currentMove.to === 'g8') {
-            // Queenside castling
-            const rookPosition = currentMove.color === 'w' ? 'h1' : 'h8';
-            const rookNewPosition = currentMove.color === 'w' ? 'f1' : 'f8';
-            newSides = updateRookPosition(newSides, rookPosition, rookNewPosition);
-          }
-        }
+        return fromExists && toExists;
+    };
 
-        return newSides;
-      });
-      setColorToMove(colorToMove === 'white' ? 'black' : 'white');
-      setMove(move + 1);
+    setMoveTaken(false)
   
-      const newMove = { from: moves[move].from, to: moves[move].to, image: getPieceImage(moves[move].piece), color: moves[move].from.color };
-      setNotation((prevNotation) => {
-        if (move % 2 === 0) {
-          return [...prevNotation, { white: newMove }];
-        } else {
-          const lastMove = prevNotation[prevNotation.length - 1];
-          lastMove.black = newMove;
-          return [...prevNotation.slice(0, -1), lastMove];
-        }
-      });
-
-      evaluatePosition(currentMove.fenAfter);
+    if (bestMove && !moveTaken) {
+      setMoveTaken(true);
       
-      getBestMove(currentMove.fenAfter);
+      currentMove = {
+        from: bestMove.slice(0, 2),
+        to: bestMove.slice(2, 4),
+        color: colorToMove
+      };
+    } else if (game) {
+      if (game.length > move) {
+        currentMove = moves[move];
+      }
+    } else {
+      return;
     }
-  };
+  
+    setSides((prevSides) => {
+      let newSides = prevSides.map((side) => {
+        return {
+          ...side,
+          pieces: side.pieces.map((piece) => {
+            if (piece.position === currentMove.from) {
+              return { ...piece, position: currentMove.to };
+            } else if (piece.position === currentMove.to) {
+              const capturedPiece = {
+                  ...piece,
+                  capturedAtMove: move,
+              };
+              setCapturedPieces(prevArray => [...prevArray, capturedPiece]);
+              return { ...piece, position: null }; // Captured
+            }
+            return piece;
+          })
+        };
+      });
+  
+      // Handle castling
+      // TODO fix for playing with comp when I cannot get piece name and san
+      // if (currentMove.piece === 'k' && currentMove.san.includes("O-O")) {
+        if (1 == 1) {
+        if (currentMove.to === 'c1' || currentMove.to === 'c8') {
+          // Kingside castling
+          const rookPosition = currentMove.color === 'w' ? 'a1' : 'a8';
+          const rookNewPosition = currentMove.color === 'w' ? 'd1' : 'd8';
+          newSides = updateRookPosition(newSides, rookPosition, rookNewPosition);
+        } else if (currentMove.to === 'g1' || currentMove.to === 'g8') {
+          // Queenside castling
+          const rookPosition = currentMove.color === 'w' ? 'h1' : 'h8';
+          const rookNewPosition = currentMove.color === 'w' ? 'f1' : 'f8';
+          newSides = updateRookPosition(newSides, rookPosition, rookNewPosition);
+        }
+      }
+
+      return newSides;
+    });
+  
+    if (bestMove) {
+      setColorToMove("white");
+    } else {
+      setColorToMove(colorToMove === 'white' ? 'black' : 'white');
+    }
+
+    setMove(move + 1);
+  
+    const newMove = { from: currentMove.from, to: currentMove.to, image: getPieceImage(currentMove.piece), color: currentMove.color };
+    setNotation((prevNotation) => {
+      if (move % 2 === 0) {
+        return [...prevNotation, { white: newMove }];
+      } else {
+        const lastMove = prevNotation[prevNotation.length - 1];
+        lastMove.black = newMove;
+        return [...prevNotation.slice(0, -1), lastMove];
+      }
+    });
+  
+    evaluatePosition(generateFEN(sides));
+  };  
+
+  const debouncedNextMove = useCallback(debounce(nextMove, 2000), []);
 
   const prevMove = () => {
     if (!user) {
@@ -765,6 +893,7 @@ function App() {
   
         return newSides;
       });
+
       setColorToMove(colorToMove === 'white' ? 'black' : 'white');
       setMove(move - 1);
       setNotation(prevNotation => {
@@ -925,6 +1054,7 @@ function App() {
             { (moves.length > 0 && user) && 
               <button onClick={() => setTesting(true)}>Test</button>
             }
+            <button onClick={() => setPlay(true)}>Play</button>
             { notice && 
               <p>
                 {notice}
