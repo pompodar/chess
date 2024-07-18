@@ -369,7 +369,7 @@ function App() {
 
     // Add castling moves
     // if (!piece.hasMoved && !isInCheck(piece.position, piece.color, sides)) {
-    if (1 == 1) {
+    if (!debouncedIsInCheck(piece.position, piece.color, sides)) {
       if (piece.color === 'white') {
         // White castling
         if (castlingRights.includes('K')) {
@@ -418,7 +418,38 @@ function canCastle(kingPosition, rookPosition, sides, color) {
     }
 
     return true;
-}
+  }
+
+  function isInCheck(position, color, sides) {
+    let kingPosition;
+    sides.forEach((side) => {
+        side.pieces.forEach((piece) => {
+            if (piece.name === 'king' && piece.color === color) {
+                kingPosition = piece.position;
+            }
+        });
+    });
+
+    const opponentColor = color === 'white' ? 'black' : 'white';
+    const opponentMoves = getAllPossibleMoves(opponentColor, sides);
+
+    return opponentMoves.includes(kingPosition);
+  }
+
+  const debouncedIsInCheck = useCallback(debounce(isInCheck, 2000), []);
+
+  function getAllPossibleMoves(color, sides) {
+    let allMoves = [];
+    sides.forEach((side) => {
+        if (side.color === color) {
+            side.pieces.forEach((piece) => {
+                const moves = getPossibleMoves(piece, sides);
+                allMoves = allMoves.concat(moves);
+            });
+        }
+    });
+    return allMoves;
+  }
 
   function isOccupied(position, sides) {
     return sides.some(side => side.pieces.some(piece => piece.position === position));
