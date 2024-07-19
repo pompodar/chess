@@ -365,7 +365,7 @@ function App() {
         const newFile = String.fromCharCode('a'.charCodeAt(0) + newFileIndex);
         const newRank = (newRankIndex + 1).toString();
         const newPosition = newFile + newRank;
-        if (!isOccupiedBySameColor(newPosition, piece.color, sides)) {
+        if (!isOccupiedBySameColor(newPosition, piece.color, sides) && !wouldMoveExposeKingToCheck(piece.position, newPosition, piece.color, sides)) {
           moves.push(newPosition);
         }
       }
@@ -537,6 +537,26 @@ function canCastle(kingPosition, rookPosition, sides, color) {
         }
     }
     return null;
+  }
+
+  function wouldMoveExposeKingToCheck(fromPosition, toPosition, color, sides) {
+    // Simulate the move
+    const newSides = sides.map(side => {
+        return {
+            ...side,
+            pieces: side.pieces.map(piece => {
+                if (piece.position === fromPosition) {
+                    return { ...piece, position: toPosition };
+                } else if (piece.position === toPosition) {
+                    return { ...piece, position: null }; // Captured
+                }
+                return piece;
+            })
+        };
+    });
+
+    // Check if the king is in check after the move
+    return isInCheck(null, color, newSides);
   }
 
   function handleClickCell(cell) {
