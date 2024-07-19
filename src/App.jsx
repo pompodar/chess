@@ -150,8 +150,6 @@ function App() {
       }
 
       if (message.startsWith('bestmove')) {
-        console.log(message)
-
         if (!play) {
           debouncedNextMove(message.split(' ')[1]);
         }
@@ -287,8 +285,10 @@ function App() {
       knight: (piece) => knightMoves(piece, sides),
       bishop: (piece) => linearMoves(piece, sides, [[1, 1], [1, -1], [-1, 1], [-1, -1]]),
       queen: (piece) => linearMoves(piece, sides, [[1, 0], [-1, 0], [0, 1], [0, -1], [1, 1], [1, -1], [-1, 1], [-1, -1]]),
-      king: (piece) => kingMoves(piece, sides, "KQkq"),
+      king: (piece) => kingMoves(piece, sides, "KQkq"), // 2-nd step to implement castling
     };
+
+    console.log(directions[piece.name](piece));
 
     return directions[piece.name](piece);
   }
@@ -319,6 +319,8 @@ function App() {
   }
 
   function knightMoves(piece, sides) {
+    if (!piece.position) return;
+
     const moves = [];
     const [file, rank] = piece.position.split('');
     const fileIndex = file.charCodeAt(0) - 'a'.charCodeAt(0);
@@ -405,20 +407,26 @@ function canCastle(kingPosition, rookPosition, sides, color) {
     const kingRank = kingPosition[1];
     const rookFile = rookPosition[0];
 
+    console.log(rookPosition, "rook position");
+
     const step = kingFile < rookFile ? 1 : -1;
     let currentFile = String.fromCharCode(kingFile.charCodeAt(0) + step);
 
     while (currentFile !== rookFile) {
       const currentPosition = currentFile + kingRank;
-      //if (isOccupied(currentPosition, sides) || isInCheck(currentPosition, color, sides)) {
-      if (isOccupied(currentPosition, sides)) {
-        return false;
-      }
+
+      console.log(isOccupied(currentPosition, sides), "occupied", currentPosition, "current position");
+
+    if (isOccupied(currentPosition, sides) || debouncedIsInCheck(currentPosition, color, sides)) {
+      return false;
+    }
       currentFile = String.fromCharCode(currentFile.charCodeAt(0) + step);
     }
 
     return true;
   }
+
+  const debouncedCanCastle = useCallback(debounce(canCastle, 2000), []);
 
   function isInCheck(position, color, sides) {
     let kingPosition;
@@ -443,6 +451,8 @@ function canCastle(kingPosition, rookPosition, sides, color) {
     sides.forEach((side) => {
         if (side.color === color) {
             side.pieces.forEach((piece) => {
+                if (piece.name == 'king') return;
+
                 const moves = getPossibleMoves(piece, sides);
                 allMoves = allMoves.concat(moves);
             });
@@ -450,6 +460,8 @@ function canCastle(kingPosition, rookPosition, sides, color) {
     });
     return allMoves;
   }
+
+  const debouncedGetAllPossibleMoves = useCallback(debounce(getAllPossibleMoves, 2000), []);
 
   function isOccupied(position, sides) {
     return sides.some(side => side.pieces.some(piece => piece.position === position));
@@ -512,10 +524,7 @@ function canCastle(kingPosition, rookPosition, sides, color) {
     }
     
     // Castling availability, en passant, halfmove clock, fullmove number
-    // For simplicity, these are placeholders and need to be replaced with actual values
     fen += ` KQkq - 0 1`;
-
-    console.log("FEN", fen);
     
     return fen;
   };  
@@ -528,8 +537,9 @@ function canCastle(kingPosition, rookPosition, sides, color) {
 
     if (!selectedPiece) {
       if (!cell.filled || colorToMove !== cell.color) return;
+
       setSelectedPiece(cell);
-      const moves = getPossibleMoves(cell, sides);
+      const moves = getPossibleMoves(cell, sides); // 1 step to implement castling
       setHighlightedCells(moves);
 
       setTestedMoveFrom(cell.position);
@@ -765,37 +775,8 @@ function canCastle(kingPosition, rookPosition, sides, color) {
     }
   
     let currentMove;
-
-    const moveData = bestMove ? { from: bestMove.slice(0, 2), to: bestMove.slice(2, 4) } : moves[move];
-
-    console.log(moveData, "moveData");
-
-    // Check if the bestMove positions are valid
-    const isNotValidMove = (move) => {
-        const fromPosition = move.from;
-        const toPosition = move.to;
-        let fromExists = false;
-        let toExists = false;
-
-        sides.forEach(side => {
-            side.pieces.forEach(piece => {
-                if (piece.position === fromPosition) {
-                    fromExists = true;
-                }
-                if (piece.position === toPosition) {
-                    toExists = true;
-                }
-            });
-        });
-
-        return fromExists && toExists;
-    };
-
-    setMoveTaken(false)
   
-    if (bestMove && !moveTaken) {
-      setMoveTaken(true);
-      
+    if (bestMove) {      
       currentMove = {
         from: bestMove.slice(0, 2),
         to: bestMove.slice(2, 4),
