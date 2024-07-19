@@ -45,6 +45,8 @@ function App() {
   const [highlightedCells, setHighlightedCells] = useState([]);
   const [promoteTo, setPromoteTo] = useState(null);
   const [pieceToPromote, setPieceToPromote] = useState(null);
+  const [incheck, setInCheck] = useState(false);
+
   const [title, setTitle] = useState("");
 
   const [notation, setNotation] = useState([]);
@@ -370,8 +372,7 @@ function App() {
     });
 
     // Add castling moves
-    // if (!piece.hasMoved && !isInCheck(piece.position, piece.color, sides)) {
-    if (!debouncedIsInCheck(piece.position, piece.color, sides)) {
+    if (!piece.hasMoved && !isInCheck(piece.position, piece.color, sides)) {
       if (piece.color === 'white') {
         // White castling
         if (castlingRights.includes('K')) {
@@ -426,8 +427,6 @@ function canCastle(kingPosition, rookPosition, sides, color) {
     return true;
   }
 
-  const debouncedCanCastle = useCallback(debounce(canCastle, 2000), []);
-
   function isInCheck(position, color, sides) {
     let kingPosition;
     sides.forEach((side) => {
@@ -460,8 +459,6 @@ function canCastle(kingPosition, rookPosition, sides, color) {
     });
     return allMoves;
   }
-
-  const debouncedGetAllPossibleMoves = useCallback(debounce(getAllPossibleMoves, 2000), []);
 
   function isOccupied(position, sides) {
     return sides.some(side => side.pieces.some(piece => piece.position === position));
@@ -529,9 +526,30 @@ function canCastle(kingPosition, rookPosition, sides, color) {
     return fen;
   };  
 
+  function findKingPosition(sides, color) {
+    for (let side of sides) {
+        if (side.color === color) {
+            for (let piece of side.pieces) {
+                if (piece.name === 'king') {
+                    return piece.position;
+                }
+            }
+        }
+    }
+    return null;
+  }
+
   function handleClickCell(cell) {
     if (!user) {
       setNotice("You better first log in");
+      return;
+    }
+
+    // Check if the king is in check
+    const kingColor = colorToMove === "white" ? "white" : "black";
+    const inCheck = isInCheck(findKingPosition(sides, kingColor), kingColor, sides);
+  
+    if (inCheck && (cell.filled && cell.name !== 'king')) {
       return;
     }
 
