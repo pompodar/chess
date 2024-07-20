@@ -63,7 +63,7 @@ function App() {
   const [testedMoveFrom, setTestedMoveFrom] = useState(null);
   const [testing, setTesting] = useState(false);
 
-  const [play, setPlay] = useState(false);
+  const [playWithStockfish, setPlayWithStockfish] = useState(false);
 
   const sidebarRef = useRef(null);
 
@@ -152,9 +152,7 @@ function App() {
       }
 
       if (message.startsWith('bestmove')) {
-        if (!play) {
-          debouncedNextMove(message.split(' ')[1]);
-        }
+        debouncedNextMove(message.split(' ')[1]);
       }    
     };
 
@@ -251,9 +249,11 @@ function App() {
   }
 
   function getPossibleMoves(piece, sides) {
+    if (piece.position === null) return [];
+
     const directions = {
       pawn: (piece) => {
-        const moves = [];
+        let moves = [];
         const direction = piece.color === 'white' ? 1 : -1;
         const startRank = piece.color === 'white' ? 2 : 7;
         
@@ -289,8 +289,6 @@ function App() {
       queen: (piece) => linearMoves(piece, sides, [[1, 0], [-1, 0], [0, 1], [0, -1], [1, 1], [1, -1], [-1, 1], [-1, -1]]),
       king: (piece) => kingMoves(piece, sides, "KQkq"), // 2-nd step to implement castling
     };
-
-    console.log(directions[piece.name](piece));
 
     return directions[piece.name](piece);
   }
@@ -349,7 +347,7 @@ function App() {
   }
 
   function kingMoves(piece, sides, castlingRights) {
-    const moves = [];
+    let moves = [];
     const [file, rank] = piece.position.split('');
     const fileIndex = file.charCodeAt(0) - 'a'.charCodeAt(0);
     const rankIndex = parseInt(rank, 10) - 1;
@@ -400,6 +398,9 @@ function App() {
       }
     }
 
+    // Filter moves that would put the king in check
+    moves = moves.filter(move => !wouldMovePutKingInCheck(piece.position, move, piece.color, sides));
+
     return moves;
 }
 
@@ -408,15 +409,11 @@ function canCastle(kingPosition, rookPosition, sides, color) {
     const kingRank = kingPosition[1];
     const rookFile = rookPosition[0];
 
-    console.log(rookPosition, "rook position");
-
     const step = kingFile < rookFile ? 1 : -1;
     let currentFile = String.fromCharCode(kingFile.charCodeAt(0) + step);
 
     while (currentFile !== rookFile) {
       const currentPosition = currentFile + kingRank;
-
-      console.log(isOccupied(currentPosition, sides), "occupied", currentPosition, "current position");
 
     if (isOccupied(currentPosition, sides) || debouncedIsInCheck(currentPosition, color, sides)) {
       return false;
@@ -440,6 +437,7 @@ function canCastle(kingPosition, rookPosition, sides, color) {
     const opponentColor = color === 'white' ? 'black' : 'white';
     const opponentMoves = getAllPossibleMoves(opponentColor, sides);
 
+
     return opponentMoves.includes(kingPosition);
   }
 
@@ -450,6 +448,7 @@ function canCastle(kingPosition, rookPosition, sides, color) {
     sides.forEach((side) => {
         if (side.color === color) {
             side.pieces.forEach((piece) => {
+                // TODO add check for king
                 if (piece.name == 'king') return;
 
                 const moves = getPossibleMoves(piece, sides);
@@ -542,6 +541,46 @@ function canCastle(kingPosition, rookPosition, sides, color) {
   function wouldMoveExposeKingToCheck(fromPosition, toPosition, color, sides) {
     // Simulate the move
     const newSides = sides.map(side => {
+      return {
+          ...side,
+          pieces: side.pieces.map(piece => {
+              if (piece.position === fromPosition) {
+                  return { ...piece, position: toPosition };
+              } else if (piece.position === toPosition) {
+                  return null; // Captured piece is removed
+              }
+              return piece;
+          }).filter(piece => {piece !== null}) // Remove captured piece
+        };
+    });
+
+    // Check if the king is in check after the move
+    return debouncedIsInCheck(toPosition, color, newSides);
+  }
+
+  function wouldMoveDefendKing(fromPosition, toPosition, color, sides) {
+    // Simulate the move
+    const newSides = sides.map(side => {
+      return {
+        ...side,
+        pieces: side.pieces.map(piece => {
+          if (piece.position === fromPosition) {
+            return { ...piece, position: toPosition };
+          } else if (piece.position === toPosition) {
+            return { ...piece, position: null }; // Captured
+          }
+          return piece;
+        })
+      };
+    });
+  
+    // Check if the king is still in check after the move
+    return !isInCheck(null, color, newSides);
+  }  
+
+  function wouldMovePutKingInCheck(fromPosition, toPosition, color, sides) {
+    // Simulate the move
+    const newSides = sides.map(side => {
         return {
             ...side,
             pieces: side.pieces.map(piece => {
@@ -566,19 +605,27 @@ function canCastle(kingPosition, rookPosition, sides, color) {
     }
 
     // Check if the king is in check
-    const kingColor = colorToMove === "white" ? "white" : "black";
-    const inCheck = isInCheck(findKingPosition(sides, kingColor), kingColor, sides);
+    // const kingColor = colorToMove === "white" ? "white" : "black";
+    // const inCheck = isInCheck(findKingPosition(sides, kingColor), kingColor, sides);
   
-    if (inCheck && (cell.filled && cell.name !== 'king')) {
-      return;
-    }
+    // if (inCheck && (cell.filled && cell.name !== 'king')) {
+    //   return;
+    // }
 
     if (!selectedPiece) {
       if (!cell.filled || colorToMove !== cell.color) return;
 
       setSelectedPiece(cell);
       const moves = getPossibleMoves(cell, sides); // 1 step to implement castling
-      setHighlightedCells(moves);
+      
+      const inCheck = isInCheck(null, colorToMove, sides);
+      if (inCheck && cell.name !== 'king') {
+        // Filter moves that defend the king
+        const defendingMoves = moves.filter(move => wouldMoveDefendKing(cell.position, move, colorToMove, sides));
+        setHighlightedCells(defendingMoves);
+      } else {
+        setHighlightedCells(moves);
+      }
 
       setTestedMoveFrom(cell.position);
     } else {
@@ -646,9 +693,11 @@ function canCastle(kingPosition, rookPosition, sides, color) {
 
           setColorToMove(colorToMove === "white" ? "black" : "white");
 
-          getBestMove(newFEN);
-
-          evaluatePosition(newFEN);
+          if (playWithStockfish) {
+            getBestMove(newFEN);
+          } else {
+            evaluatePosition(newFEN);
+          }
   
           return newSides;
         });
@@ -1104,7 +1153,7 @@ function canCastle(kingPosition, rookPosition, sides, color) {
             { (moves.length > 0 && user) && 
               <button onClick={() => setTesting(true)}>Test</button>
             }
-            <button onClick={() => setPlay(true)}>Play</button>
+            <button onClick={() => setPlayWithStockfish(true)}>Play with Stockfish</button>
             { notice && 
               <p>
                 {notice}
