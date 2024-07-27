@@ -772,51 +772,6 @@ function canCastle(kingPosition, rookPosition, sides, color) {
     setHighlightedCells([]);
   }
 
-  const Board = () => (
-    <div className="flex flex-col items-center">
-      {/* Top file labels */}
-      <div className="flex">
-        <div className="w-10 h-10"></div>
-        {["a", "b", "c", "d", "e", "f", "g", "h"].map((file) => (
-          <div key={file} className="w-10 h-10 flex justify-center items-center text-sm">
-            {file.toUpperCase()}
-          </div>
-        ))}
-      </div>
-      {[8, 7, 6, 5, 4, 3, 2, 1].map((rank) => (
-        <div className="flex" key={rank}>
-          {/* Left rank labels */}
-          <div className="w-10 h-10 flex justify-center items-center text-sm">
-            {rank}
-          </div>
-          {["a", "b", "c", "d", "e", "f", "g", "h"].map((file, index) => {
-            const cell = fillCell(file + rank);
-            const isBlack = (index + rank) % 2 === 1; // Determines if the cell should be black
-  
-            return (
-              <div
-                className={`cell w-10 h-10 border-2 flex justify-center items-center cursor-pointer ${highlightedCells.includes(cell.position) ? "bg-gray-100" : ""} ${isBlack ? "bg-yellow-100 text-white" : "bg-white"}`}
-                key={file + rank}
-                onClick={() => handleClickCell(cell)}
-              >
-                {cell.filled && cell.image}
-              </div>
-            );
-          })}
-        </div>
-      ))}
-      {/* Bottom file labels */}
-      <div className="flex">
-        <div className="w-10 h-10"></div>
-        {["a", "b", "c", "d", "e", "f", "g", "h"].map((file) => (
-          <div key={file} className="w-10 h-10 flex justify-center items-center text-sm">
-            {file.toUpperCase()}
-          </div>
-        ))}
-      </div>
-    </div>
-  );  
-
   const loadPgnFile = (fileName) => {
     axios.get(`https://plum-goldenrod-clove.glitch.me/api/pgn-files/${fileName}`)
       .then(response => {
@@ -1193,7 +1148,52 @@ function canCastle(kingPosition, rookPosition, sides, color) {
           {(game && user) && (
               <h1 className="text-2xl mb-2">{title}</h1>
           )}
-          <Board />
+          <div className="flex flex-col">
+            {/* Top file labels */}
+            <div className="flex">
+              <div className="w-10 h-10"></div>
+              {["a", "b", "c", "d", "e", "f", "g", "h"].map((file) => (
+                <div key={file} className="w-10 h-10 flex justify-center items-center">
+                  {file.toUpperCase()}
+                </div>
+              ))}
+            </div>
+            <div className="flex">
+              <div className="flex flex-col">
+                {[8, 7, 6, 5, 4, 3, 2, 1].map((rank) => (
+                  <div className="w-10 h-10 flex justify-center items-center text-sm" key={rank}>
+                    {rank}
+                  </div>
+                ))}
+              </div>
+              {["a", "b", "c", "d", "e", "f", "g", "h"].map((file, index) => (
+                <div className="row" key={index}>
+                  {[1, 2, 3, 4, 5, 6, 7, 8].reverse().map((rank) => {
+                    const cell = fillCell(file + rank);
+                    const isBlack = (index + rank) % 2 === 1; // Determines if the cell should be black
+                    return (
+                      <div
+                        className={`cell w-10 h-10 border-2 flex justify-center items-center cursor-pointer ${isBlack && !highlightedCells.includes(cell.position) ? "bg-yellow-100" : ""} ${highlightedCells.includes(cell.position) ? "bg-gray-100" : ""}`}
+                        key={index + rank}
+                        onClick={() => handleClickCell(cell)}
+                      >
+                        {cell.filled && cell.image}
+                      </div>
+                    );
+                  })}
+                </div>
+              ))}
+            </div>
+            {/* Bottom file labels */}
+            <div className="flex">
+              <div className="w-10 h-10"></div>
+              {["a", "b", "c", "d", "e", "f", "g", "h"].map((file) => (
+                <div key={file} className="w-10 h-10 flex justify-center items-center">
+                  {file.toUpperCase()}
+                </div>
+              ))}
+            </div>
+          </div>
           <div className="m-2">
             {(game && user) && (
               <>
