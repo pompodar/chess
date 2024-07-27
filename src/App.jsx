@@ -13,6 +13,7 @@ import { signInWithGoogle } from "./config/firebase";
 import { auth as firebaseAuth } from './config/firebase';
 import { onAuthStateChanged, getAuth, signOut } from 'firebase/auth';
 import debounce from 'lodash.debounce';
+import Spinner from './Spinner.jsx';
 
 export const Logo = () => <Piece color="white" piece="N" width={64} />;
 
@@ -45,7 +46,6 @@ function App() {
   const [highlightedCells, setHighlightedCells] = useState([]);
   const [promoteTo, setPromoteTo] = useState(null);
   const [pieceToPromote, setPieceToPromote] = useState(null);
-  const [incheck, setInCheck] = useState(false);
 
   const [title, setTitle] = useState("");
 
@@ -57,7 +57,6 @@ function App() {
   const [engine, setEngine] = useState(null);
   const [evaluation, setEvaluation] = useState(null);
   const [bestMove, setBestMove] = useState(null);
-  const [moveTaken, setMoveTaken] = useState(false);
 
   const [testedMovesNumber, setTestedMovesNumber] = useState(0);
   const [testedMoveFrom, setTestedMoveFrom] = useState(null);
@@ -66,6 +65,10 @@ function App() {
   const [playWithStockfish, setPlayWithStockfish] = useState(false);
 
   const sidebarRef = useRef(null);
+
+  const [AIResponse, setAIResponse] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
 
   const submitWithGoogle = async (e) => {
     e.preventDefault();
@@ -109,7 +112,46 @@ function App() {
 
   const debouncedFetchPgnFiles = useCallback(debounce(fetchPgnFiles, 250), []);
 
-  useEffect(() => {
+  function getAIResponse (fen) {
+    const url = 'http://localhost:11434/api/generate';
+        const data = {
+            model: "llama3",
+            prompt: "You are a chess trainer. Analyze the following FEN position and give evaluation and advise on strategy for white. Not more than 38 words: " + fen,
+            format: "",    
+            stream: false
+        };
+
+        setLoading(true);
+
+        fetch(url, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(data)
+        }).then(response => {
+            const reader = response.body.getReader();
+            const decoder = new TextDecoder("utf-8");
+
+            return reader.read().then(function processText({ done, value }) {
+                if (done) {
+                    setLoading(false);
+                    return;
+                }
+
+                setAIResponse(JSON.parse(decoder.decode(value)).response);
+                return reader.read().then(processText);
+            });
+        }).catch(error => {
+            console.error('Error:', error);
+            setError(error);
+            setLoading(false);
+        });
+  }
+
+  const debouncedgetAIResponse = useCallback(debounce(getAIResponse, 100), []);
+
+  useEffect(() => {    
     debouncedFetchPgnFiles(currentPage, searchTerm, 1);
     //fetchPgnFiles(currentPage, searchTerm, 1);
   }, [pgnFiles, currentPage, searchTerm]);
@@ -601,16 +643,10 @@ function canCastle(kingPosition, rookPosition, sides, color) {
   function handleClickCell(cell) {
     if (!user) {
       setNotice("You better first log in");
-      return;
+      //return;
     }
 
     // Check if the king is in check
-    // const kingColor = colorToMove === "white" ? "white" : "black";
-    // const inCheck = isInCheck(findKingPosition(sides, kingColor), kingColor, sides);
-  
-    // if (inCheck && (cell.filled && cell.name !== 'king')) {
-    //   return;
-    // }
 
     if (!selectedPiece) {
       if (!cell.filled || colorToMove !== cell.color) return;
@@ -691,6 +727,8 @@ function canCastle(kingPosition, rookPosition, sides, color) {
           // Generate and log FEN string
           const newFEN = generateFEN(newSides, "play");
 
+          debouncedgetAIResponse(newFEN);
+
           setColorToMove(colorToMove === "white" ? "black" : "white");
 
           if (playWithStockfish) {
@@ -735,15 +773,30 @@ function canCastle(kingPosition, rookPosition, sides, color) {
   }
 
   const Board = () => (
-    <div className="flex">
-      {["a", "b", "c", "d", "e", "f", "g", "h"].map((file, index) => (
-        <div className="row" key={index}>
-          {[1, 2, 3, 4, 5, 6, 7, 8].reverse().map((rank) => {
+    <div className="flex flex-col items-center">
+      {/* Top file labels */}
+      <div className="flex">
+        <div className="w-10 h-10"></div>
+        {["a", "b", "c", "d", "e", "f", "g", "h"].map((file) => (
+          <div key={file} className="w-10 h-10 flex justify-center items-center text-sm">
+            {file.toUpperCase()}
+          </div>
+        ))}
+      </div>
+      {[8, 7, 6, 5, 4, 3, 2, 1].map((rank) => (
+        <div className="flex" key={rank}>
+          {/* Left rank labels */}
+          <div className="w-10 h-10 flex justify-center items-center text-sm">
+            {rank}
+          </div>
+          {["a", "b", "c", "d", "e", "f", "g", "h"].map((file, index) => {
             const cell = fillCell(file + rank);
+            const isBlack = (index + rank) % 2 === 1; // Determines if the cell should be black
+  
             return (
               <div
-                className={`cell w-10 h-10 border-2 flex justify-center items-center cursor-pointer ${highlightedCells.includes(cell.position) ? "bg-gray-100" : ""}`}
-                key={index + rank}
+                className={`cell w-10 h-10 border-2 flex justify-center items-center cursor-pointer ${highlightedCells.includes(cell.position) ? "bg-gray-100" : ""} ${isBlack ? "bg-yellow-100 text-white" : "bg-white"}`}
+                key={file + rank}
                 onClick={() => handleClickCell(cell)}
               >
                 {cell.filled && cell.image}
@@ -752,8 +805,17 @@ function canCastle(kingPosition, rookPosition, sides, color) {
           })}
         </div>
       ))}
+      {/* Bottom file labels */}
+      <div className="flex">
+        <div className="w-10 h-10"></div>
+        {["a", "b", "c", "d", "e", "f", "g", "h"].map((file) => (
+          <div key={file} className="w-10 h-10 flex justify-center items-center text-sm">
+            {file.toUpperCase()}
+          </div>
+        ))}
+      </div>
     </div>
-  );
+  );  
 
   const loadPgnFile = (fileName) => {
     axios.get(`https://plum-goldenrod-clove.glitch.me/api/pgn-files/${fileName}`)
@@ -855,7 +917,7 @@ function canCastle(kingPosition, rookPosition, sides, color) {
     });
   };
 
-  const nextMove = async (bestMove = false) => {
+  const nextMove = async (_bestMove = false) => {
     if (!user) {
       setNotice("You better first log in");
       //return;
@@ -863,10 +925,10 @@ function canCastle(kingPosition, rookPosition, sides, color) {
   
     let currentMove;
   
-    if (bestMove) {      
+    if (_bestMove) {      
       currentMove = {
-        from: bestMove.slice(0, 2),
-        to: bestMove.slice(2, 4),
+        from: _bestMove.slice(0, 2),
+        to: _bestMove.slice(2, 4),
         color: colorToMove
       };
     } else if (game) {
@@ -917,7 +979,7 @@ function canCastle(kingPosition, rookPosition, sides, color) {
       return newSides;
     });
   
-    if (bestMove) {
+    if (_bestMove) {
       setColorToMove("white");
     } else {
       setColorToMove(colorToMove === 'white' ? 'black' : 'white');
@@ -1077,6 +1139,7 @@ function canCastle(kingPosition, rookPosition, sides, color) {
           <div className="relative after:w-2 after:h-2 after:bg-[aqua] after:absolute after:top-[17px] after:right-[11px] after:rounded-full after:z-[-1]">
             <Logo />
           </div>
+          <h1 className="text-sm">AI driven chess learning</h1>
           <p className="inline">
             {user.displayName}
           </p>
@@ -1140,10 +1203,10 @@ function canCastle(kingPosition, rookPosition, sides, color) {
                 <button onClick={prevMove}>
                   <AiFillFastBackward />
                 </button>
-                <button onClick={nextMove}>
+                <button onClick={() => nextMove(false)}>
                   <AiFillStepForward />
                 </button>
-                <button onClick={nextMove}>
+                <button onClick={() => nextMove(false)}>
                   <AiFillFastForward />
                 </button>
               </>
@@ -1162,9 +1225,9 @@ function canCastle(kingPosition, rookPosition, sides, color) {
           </div>
         </div>    
         <div className="mt-4  w-64">
-          {notation.length > 0 && (
+          {(notation.length > 0 || AIResponse || loading) && (
             <div>
-              <h2 className="text-lg">Notation</h2>
+              <h2 className="text-lg">{notation.length > 0 && "Notation"}{AIResponse && "Your AI trainer"}</h2>
               <ul className="max-h-12 lg:max-h-48 overflow-auto mb-2" ref={sidebarRef}>
                 {notation.map((move, index) => (
                   <li key={index}>
@@ -1174,6 +1237,26 @@ function canCastle(kingPosition, rookPosition, sides, color) {
                   </li>
                 ))}
               </ul>
+              <ul className="max-h-12 lg:max-h-48 overflow-auto mb-2">
+               {(loading) && (
+                  <div className="flex gap-2 justify-center items-center">
+                    <div className="text-center">
+                      <div className="text-3xl font-bold">
+                        <Spinner />
+                      </div>
+                    </div>
+                  </div>
+                )}
+                {(AIResponse && !loading) && (
+                  <div className="flex gap-2 justify-center items-center">
+                    <div className="text-center">
+                      <div className="text-small">
+                        {AIResponse}
+                      </div>
+                    </div>
+                  </div>
+                )}
+                </ul>
             </div>
           )}
           {(evaluation && user) && (
